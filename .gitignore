@@ -1,0 +1,26 @@
+# --- Auxiliares LaTeX ---
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.toc
+*.loa
+*.loe
+*.lof
+*.loi
+*.lot
+*.synctex
+*.synctex.gz
+
+# --- Temporales de trabajo ---
+tmp_*
+
+# --- PDF compilado principal ---
+main.pdf
+
+# --- Material institucional / de trabajo (no publicar) ---
+uploads/
+prism-uploads/
