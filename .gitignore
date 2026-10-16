@@ -24,3 +24,12 @@ main.pdf
 # --- Material institucional / de trabajo (no publicar) ---
 uploads/
 prism-uploads/
+
+# --- Python (entorno y cachés) ---
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# --- Ficha institucional (contiene correos de terceros) ---
+informacion-tesis*.txt

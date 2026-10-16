@@ -1,0 +1,15 @@
+# E3 — Extremo a extremo: valida E2E ≈ TTFT + (L_out − 1)·TPOT (SPEC §8.2).
+experimento:
+  exp_id: e3
+  nombre: Extremo a extremo
+  fase_objetivo: e2e
+  modo_carga: offline
+  descripcion: Combinaciones mixtas para validar la composición de los modelos de prefill y decode.
+ejecucion:
+  repeticiones: 5
+  num_warmup: 5
+  lotes_por_corrida: 3
+barridos:
+  - l_in: [256, 1024, 4096]
+    l_out: [32, 128, 512]
+    concurrencia: [1, 8, 32]

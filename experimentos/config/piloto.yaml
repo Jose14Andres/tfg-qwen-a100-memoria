@@ -1,0 +1,16 @@
+# Corrida piloto (SPEC §13, semana 6): valida el banco de pruebas y estima tiempos.
+experimento:
+  exp_id: piloto
+  nombre: Piloto
+  fase_objetivo: e2e
+  modo_carga: offline
+  descripcion: Subconjunto mínimo para validar el banco de pruebas y estimar la duración de la campaña.
+ejecucion:
+  repeticiones: 2
+  num_warmup: 5
+  lotes_por_corrida: 3
+barridos:
+  - l_in: [512, 4096]
+    l_out: [1, 128]
+    concurrencia: [1, 16]
+    chunked_prefill: [false, true]

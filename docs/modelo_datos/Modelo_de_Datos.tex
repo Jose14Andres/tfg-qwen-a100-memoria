@@ -1,0 +1,652 @@
+% ============================================================
+% Modelo_de_Datos.tex — Modelo de datos del banco de pruebas
+% TFG ITI-TFG-B26-0017 · Qwen3-8B / vLLM / NVIDIA A100
+% Compilación: pdflatex Modelo_de_Datos.tex (dos pasadas)
+% ============================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[spanish,es-tabla,es-nodecimaldot]{babel}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{underscore}
+\usepackage{longtable,booktabs,array}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage{pdflscape}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,calc}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{uti}{HTML}{1F3A5F}
+\definecolor{utiLight}{HTML}{E8EEF5}
+\definecolor{pkc}{HTML}{B8860B}
+\definecolor{fkc}{HTML}{2E7D32}
+\definecolor{vista}{HTML}{6A1B9A}
+
+\setlength{\parindent}{0pt}
+\sloppy
+\setlength{\parskip}{0.55em}
+\renewcommand{\arraystretch}{1.18}
+
+\newcommand{\PK}{\textcolor{pkc}{\textbf{PK}}}
+\newcommand{\FK}{\textcolor{fkc}{\textbf{FK}}}
+\newcommand{\campo}[1]{\texttt{#1}}
+
+% ---------- Entidad del diagrama ER ----------
+% \entidad{id}{posición}{título}{filas}{color}
+\newcommand{\entidad}[5][uti]{%
+  \node[anchor=north, fill=#1, text=white, font=\bfseries\small,
+        minimum width=6.0cm, inner sep=3pt] (#2h) at (#3) {#4};
+  \node[anchor=north, draw=#1, fill=white, font=\scriptsize,
+        text width=5.8cm, inner sep=3pt] (#2b) at (#2h.south) {#5};
+  \node[draw=#1, thick, fit=(#2h)(#2b), inner sep=0pt] (#2) {};
+}
+\newcommand{\fila}[3]{\makebox[1.05cm][l]{#1}\makebox[2.9cm][l]{\ttfamily #2}{\color{gray}#3}\\}
+
+% ---------- Diccionario de datos ----------
+\newenvironment{diccionario}{%
+  \small
+  \begin{longtable}{@{}>{\raggedright\ttfamily}p{3.4cm}>{\raggedright}p{2.2cm}>{\raggedright}p{1.6cm}p{0.9cm}>{\raggedright\arraybackslash}p{5.8cm}@{}}
+  \toprule
+  \normalfont\textbf{Campo} & \textbf{Tipo} & \textbf{Unidad} & \textbf{Nulo} & \textbf{Descripción}\\
+  \midrule\endhead
+  \bottomrule\endfoot
+}{\end{longtable}}
+
+\begin{document}
+
+% ==========================================================
+% PORTADA
+% ==========================================================
+\begin{titlepage}
+\centering
+\vspace*{1.5cm}
+{\color{uti}\rule{\linewidth}{1.2pt}}\\[0.8em]
+{\LARGE\bfseries\color{uti} Modelo de Datos\\[0.3em]
+\large del banco de pruebas experimental}\\[0.6em]
+{\color{uti}\rule{\linewidth}{1.2pt}}\\[2.2em]
+{\large Modelado experimental de las fases prefill y decode de\\
+Qwen3-8B en NVIDIA A100 mediante vLLM}\\[3em]
+
+\begin{tabular}{rl}
+\textbf{Código:} & ITI-TFG-B26-0017\\
+\textbf{Autor:} & José Andrés Ureta Granda\\
+\textbf{Tutor:} & Andrès Xavier Rubio Proaño\\
+\textbf{Institución:} & Universidad Tecnológica Indoamérica\\
+ & Facultad de Ingenierías — Ingeniería en TI\\
+\textbf{Documento:} & Modelo de datos, versión 0.1 (borrador)\\
+\textbf{Fecha:} & 8 de octubre de 2026\\
+\textbf{Relacionado:} & \texttt{SPEC.md} (secciones 8–12)\\
+\end{tabular}
+
+\vfill
+\includegraphics[width=4.5cm]{../../Logos/LOGO-UTI-1.png}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+% ==========================================================
+\section{Propósito y alcance}
+% ==========================================================
+Este documento define el modelo de datos que soporta la campaña experimental descrita en \texttt{SPEC.md}. Cubre la información que se captura, cómo se relaciona, con qué tipos y unidades se almacena y qué reglas de integridad deben cumplirse para que los modelos predictivos de prefill y decode sean trazables y reproducibles.
+
+El modelo responde a cuatro necesidades:
+\begin{enumerate}[nosep]
+  \item \textbf{Contexto reproducible:} registrar el hardware, el software y la configuración de vLLM exactos de cada medición.
+  \item \textbf{Mediciones crudas:} tiempos por petición y por token, y telemetría de la GPU y del servidor.
+  \item \textbf{Métricas derivadas:} TTFT, TPOT/ITL, throughput, goodput, MFU y MBU por corrida.
+  \item \textbf{Modelos ajustados:} coeficientes, error de validación y qué corridas se usaron para entrenar y para probar.
+\end{enumerate}
+
+\textbf{Fuera de alcance:} el texto de los prompts y de las respuestas generadas. Los prompts son sintéticos y se regeneran de forma determinista a partir de la semilla y de la longitud, y la calidad de las respuestas no se evalúa.
+
+% ==========================================================
+\section{Convenciones}
+% ==========================================================
+\begin{itemize}[nosep]
+  \item \textbf{Nombres:} \texttt{snake_case}, en español y sin tildes. Las tablas van en singular.
+  \item \textbf{Identificadores:} \texttt{UUID} (v4, texto) para las entidades que se generan en ejecución (\campo{corrida}, \campo{peticion}, \campo{ajuste_modelo}). Para las entidades de contexto (\campo{entorno}, \campo{config_servidor}) el identificador es el \texttt{SHA-256} truncado a 16 caracteres de su contenido canónico en JSON: dos configuraciones idénticas producen el mismo identificador.
+  \item \textbf{Tiempo:} las marcas de tiempo de alta resolución son \texttt{INT64} en nanosegundos de reloj monotónico (\texttt{time.perf_counter_ns}) y llevan el sufijo \texttt{_ns}. Las métricas derivadas van en milisegundos con el sufijo \texttt{_ms}. Las fechas de pared van en \texttt{TIMESTAMP} UTC.
+  \item \textbf{Tokens:} siempre contados con el tokenizer oficial de Qwen3-8B.
+  \item \textbf{Enumeraciones:} se almacenan como texto en minúsculas con valores cerrados (indicados entre llaves).
+  \item \textbf{Tipos lógicos:} \texttt{TEXT}, \texttt{INT32}, \texttt{INT64}, \texttt{REAL} (float64), \texttt{BOOL}, \texttt{TIMESTAMP}, \texttt{JSON} (texto con JSON válido). Se mapean de forma directa a Parquet/Arrow y a DuckDB.
+  \item \textbf{Leyenda:} \PK{} = clave primaria; \FK{} = clave foránea; los campos marcados con † son derivados (calculados en el análisis, no medidos).
+\end{itemize}
+
+% ==========================================================
+\section{Visión general}
+% ==========================================================
+El modelo se organiza en cuatro capas:
+
+\begin{center}
+\begin{tabular}{@{}>{\raggedright}p{2.4cm}>{\raggedright}p{6.4cm}>{\raggedright\arraybackslash}p{6.4cm}@{}}
+\toprule
+\textbf{Capa} & \textbf{Entidades} & \textbf{Origen}\\
+\midrule
+Contexto & \campo{entorno}, \campo{config_servidor}, \campo{experimento} & Registradas al inicio de la corrida\\
+Ejecución & \campo{corrida}, \campo{peticion}, \campo{evento_token} & Cliente de carga (\texttt{runner.py})\\
+Telemetría & \campo{muestra_gpu}, \campo{muestra_vllm} & \texttt{telemetry.py} (muestreo a 100 ms)\\
+Modelado & \campo{ajuste_modelo}, \campo{coeficiente}, \campo{ajuste_corrida}; vista \campo{resumen_corrida} & \texttt{analysis/fit.py}, \texttt{load.py}\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La entidad central es \campo{corrida}: \emph{un punto de la matriz experimental} (combinación de $L_{in}$, $L_{out}$, $B$, $\lambda$ y configuración) \emph{en una repetición concreta}. Todas las mediciones cuelgan de ella.
+
+% ==========================================================
+% DIAGRAMA ER (página apaisada)
+% ==========================================================
+\begin{landscape}
+\section{Diagrama entidad–relación}
+\label{sec:er}
+\begin{center}
+\resizebox{!}{0.86\textheight}{%
+\begin{tikzpicture}[
+  rel/.style={-{Stealth[length=2.5mm]}, thick, draw=gray!70!black},
+  card/.style={font=\scriptsize\bfseries, fill=white, inner sep=1pt},
+]
+% --- Contexto (fila superior) ---
+\entidad{entorno}{0,0}{entorno}{%
+  \fila{\PK}{env_id}{TEXT}
+  \fila{}{gpu_modelo}{TEXT}
+  \fila{}{gpu_memoria_gb}{REAL}
+  \fila{}{gpu_formato}{TEXT}
+  \fila{}{driver_version}{TEXT}
+  \fila{}{cuda_version}{TEXT}
+  \fila{}{vllm_version}{TEXT}
+  \fila{}{torch_version}{TEXT}
+  \fila{}{proveedor}{TEXT}
+  \fila{}{lockfile_sha256}{TEXT}
+  \fila{}{\dots}{}}
+\entidad{experimento}{7,0}{experimento}{%
+  \fila{\PK}{exp_id}{TEXT}
+  \fila{}{nombre}{TEXT}
+  \fila{}{fase_objetivo}{TEXT}
+  \fila{}{modo_carga}{TEXT}
+  \fila{}{descripcion}{TEXT}}
+\entidad{config}{14,0}{config\_servidor}{%
+  \fila{\PK}{config_id}{TEXT}
+  \fila{}{modelo_id}{TEXT}
+  \fila{}{modelo_revision}{TEXT}
+  \fila{}{dtype}{TEXT}
+  \fila{}{max_model_len}{INT32}
+  \fila{}{gpu_memory_util}{REAL}
+  \fila{}{chunked_prefill}{BOOL}
+  \fila{}{max_num_batched_tok}{INT32}
+  \fila{}{max_num_seqs}{INT32}
+  \fila{}{prefix_caching}{BOOL}
+  \fila{}{\dots}{}}
+
+% --- Corrida (centro) ---
+\entidad{corrida}{7,-7}{corrida}{%
+  \fila{\PK}{run_id}{UUID}
+  \fila{\FK}{exp_id}{TEXT}
+  \fila{\FK}{env_id}{TEXT}
+  \fila{\FK}{config_id}{TEXT}
+  \fila{}{l_in}{INT32}
+  \fila{}{l_out}{INT32}
+  \fila{}{concurrencia}{INT32}
+  \fila{}{tasa_llegada}{REAL}
+  \fila{}{repeticion}{INT32}
+  \fila{}{inicio}{TIMESTAMP}
+  \fila{}{fin}{TIMESTAMP}
+  \fila{}{estado}{TEXT}}
+
+% --- Telemetría (izquierda) ---
+\entidad{mgpu}{0,-7}{muestra\_gpu}{%
+  \fila{\PK\,\FK}{run_id}{UUID}
+  \fila{\PK}{t_ns}{INT64}
+  \fila{}{util_gpu_pct}{REAL}
+  \fila{}{mem_usada_mib}{REAL}
+  \fila{}{potencia_w}{REAL}
+  \fila{}{reloj_sm_mhz}{INT32}
+  \fila{}{temperatura_c}{REAL}}
+\entidad{mvllm}{0,-13.6}{muestra\_vllm}{%
+  \fila{\PK\,\FK}{run_id}{UUID}
+  \fila{\PK}{t_ns}{INT64}
+  \fila{}{pet_ejecutando}{INT32}
+  \fila{}{pet_esperando}{INT32}
+  \fila{}{kv_cache_uso_pct}{REAL}
+  \fila{}{preemptions_total}{INT64}}
+
+% --- Ejecución (abajo) ---
+\entidad{peticion}{7,-13.6}{peticion}{%
+  \fila{\PK}{req_id}{UUID}
+  \fila{\FK}{run_id}{UUID}
+  \fila{}{es_warmup}{BOOL}
+  \fila{}{tokens_prompt}{INT32}
+  \fila{}{tokens_salida}{INT32}
+  \fila{}{t_envio_ns}{INT64}
+  \fila{}{t_primer_token_ns}{INT64}
+  \fila{}{t_fin_ns}{INT64}
+  \fila{}{ttft_ms / tpot_ms †}{REAL}
+  \fila{}{estado}{TEXT}}
+\entidad{evtok}{14,-13.6}{evento\_token}{%
+  \fila{\PK\,\FK}{req_id}{UUID}
+  \fila{\PK}{idx_token}{INT32}
+  \fila{}{t_ns}{INT64}
+  \fila{}{n_tokens_chunk}{INT32}
+  \fila{}{itl_ms †}{REAL}}
+
+% --- Modelado (derecha) ---
+\entidad{ajcor}{14,-7}{ajuste\_corrida}{%
+  \fila{\PK\,\FK}{fit_id}{UUID}
+  \fila{\PK\,\FK}{run_id}{UUID}
+  \fila{}{particion}{TEXT}}
+\entidad{ajuste}{21,-7}{ajuste\_modelo}{%
+  \fila{\PK}{fit_id}{UUID}
+  \fila{\FK}{env_id}{TEXT}
+  \fila{\FK}{config_id}{TEXT}
+  \fila{}{fase}{TEXT}
+  \fila{}{formula}{TEXT}
+  \fila{}{metodo}{TEXT}
+  \fila{}{mape_pct}{REAL}
+  \fila{}{r2}{REAL}
+  \fila{}{rmse_ms}{REAL}}
+\entidad{coef}{21,-13.6}{coeficiente}{%
+  \fila{\PK\,\FK}{fit_id}{UUID}
+  \fila{\PK}{nombre}{TEXT}
+  \fila{}{valor}{REAL}
+  \fila{}{ic95_inf / sup}{REAL}
+  \fila{}{unidad}{TEXT}}
+
+% --- Vista derivada ---
+\entidad[vista]{resumen}{21,0}{resumen\_corrida (vista)}{%
+  \fila{\PK\,\FK}{run_id}{UUID}
+  \fila{}{ttft_p50/p90/p99}{REAL}
+  \fila{}{tpot_p50/p99}{REAL}
+  \fila{}{itl_p99}{REAL}
+  \fila{}{throughput_tok_s}{REAL}
+  \fila{}{goodput_req_s}{REAL}
+  \fila{}{mfu_pct / mbu_pct}{REAL}
+  \fila{}{energia_j_token}{REAL}}
+
+% --- Relaciones (flecha: de la entidad hija hacia la padre) ---
+\draw[rel] (corrida.north) -- node[card, pos=0.12]{N} node[card, pos=0.88]{1} (experimento.south);
+\draw[rel] (corrida.north west) -- node[card, pos=0.12]{N} node[card, pos=0.88]{1} (entorno.south);
+\draw[rel] (corrida.north east) -- node[card, pos=0.12]{N} node[card, pos=0.88]{1} (config.south);
+\draw[rel] (mgpu.east) -- node[card, pos=0.15]{N} node[card, pos=0.85]{1} (corrida.west);
+\draw[rel] (mvllm.east) -- node[card, pos=0.12]{N} node[card, pos=0.88]{1} (corrida.south west);
+\draw[rel] (peticion.north) -- node[card, pos=0.15]{N} node[card, pos=0.85]{1} (corrida.south);
+\draw[rel] (evtok.west) -- node[card, pos=0.15]{N} node[card, pos=0.85]{1} (evtok.west -| peticion.east);
+\draw[rel] (ajcor.west) -- node[card, pos=0.15]{N} node[card, pos=0.85]{1} (ajcor.west -| corrida.east);
+\draw[rel] (ajcor.east) -- node[card, pos=0.15]{N} node[card, pos=0.85]{1} (ajcor.east -| ajuste.west);
+\draw[rel] (coef.north) -- node[card, pos=0.15]{N} node[card, pos=0.85]{1} (ajuste.south);
+\draw[rel, dashed] (ajuste.north west) -- node[card, pos=0.12]{N} node[card, pos=0.88]{1} (config.south east);
+\draw[rel, dashed] (ajuste.east) -- ++(1.0,0) |- ($(entorno.north)+(0,0.9)$) node[card, pos=0.04]{N} -- node[card, pos=0.7]{1} (entorno.north);
+\draw[rel, draw=vista, dotted] (resumen.south) -- ++(0,-0.9) -| node[card, pos=0.05]{1} node[card, pos=0.95]{1} ($(corrida.north)+(1.5,0)$);
+
+% Leyenda
+\node[anchor=north west, draw=gray, font=\scriptsize, align=left, inner sep=4pt] at (11.2,-17.6) {%
+  \textbf{Leyenda}\\[2pt]
+  \PK{} clave primaria \quad \FK{} clave foránea\\
+  † campo derivado\\
+  \tikz\draw[rel] (0,0)--(0.8,0); \ N:1 obligatoria\\
+  \tikz\draw[rel,dashed] (0,0)--(0.8,0); \ N:1 de ámbito del ajuste\\
+  \tikz\draw[rel,draw=vista,dotted] (0,0)--(0.8,0); \ vista 1:1 derivada};
+\end{tikzpicture}}
+\end{center}
+\end{landscape}
+
+% ==========================================================
+\section{Diccionario de datos}
+% ==========================================================
+
+\subsection{\texttt{entorno}}
+Hardware y software exactos en los que se ejecutó una corrida. Se registra automáticamente desde \texttt{nvidia-smi}, \texttt{pip freeze} y el sistema operativo.
+\begin{diccionario}
+env_id & TEXT & — & no & \PK{} Hash SHA-256 (16 car.) del JSON canónico de los demás campos.\\
+gpu_modelo & TEXT & — & no & Nombre reportado, p.\,ej. \texttt{NVIDIA A100-SXM4-80GB}.\\
+gpu_uuid & TEXT & — & no & UUID físico de la GPU; distingue tarjetas del mismo modelo.\\
+gpu_memoria_gb & REAL & GB & no & Memoria total de la GPU.\\
+gpu_formato & TEXT & — & no & \{pcie, sxm4\}.\\
+ancho_banda_pico_gbs & REAL & GB/s & no & Ancho de banda HBM de la hoja de datos (para MBU).\\
+flops_pico_tflops & REAL & TFLOPS & no & Pico BF16 Tensor Core denso (para MFU).\\
+driver_version & TEXT & — & no & Versión del driver NVIDIA.\\
+cuda_version & TEXT & — & no & Versión de CUDA.\\
+cpu_modelo & TEXT & — & sí & Modelo de CPU del host.\\
+ram_gb & REAL & GB & sí & RAM del host.\\
+so & TEXT & — & no & Sistema operativo y kernel.\\
+python_version & TEXT & — & no & Versión de Python.\\
+vllm_version & TEXT & — & no & Versión exacta de vLLM.\\
+torch_version & TEXT & — & no & Versión de PyTorch.\\
+imagen_contenedor & TEXT & — & sí & Imagen Docker con digest, si se usa.\\
+lockfile_sha256 & TEXT & — & no & Hash del lockfile de dependencias.\\
+proveedor & TEXT & — & no & Laboratorio o nube (p.\,ej. \texttt{gcp}, \texttt{runpod}, \texttt{lab-uti}).\\
+registrado_en & TIMESTAMP & UTC & no & Primera vez que se observó este entorno.\\
+\end{diccionario}
+
+\subsection{\texttt{experimento}}
+Catálogo estático de los experimentos E1–E5 definidos en \texttt{SPEC.md} §8.2.
+\begin{diccionario}
+exp_id & TEXT & — & no & \PK{} \{e1, e2, e3, e4, e5\}.\\
+nombre & TEXT & — & no & Nombre corto (p.\,ej. ``Prefill aislado'').\\
+fase_objetivo & TEXT & — & no & \{prefill, decode, e2e, interferencia, capacidad\}.\\
+modo_carga & TEXT & — & no & \{offline, online\}. \emph{Offline}: lote fijo mediante la API \texttt{LLM}. \emph{Online}: servidor compatible con OpenAI y llegadas de Poisson.\\
+descripcion & TEXT & — & sí & Objetivo y diseño del experimento.\\
+\end{diccionario}
+
+\subsection{\texttt{config_servidor}}
+Parámetros con los que se lanzó vLLM. Cualquier cambio produce un \texttt{config_id} nuevo.
+\begin{diccionario}
+config_id & TEXT & — & no & \PK{} Hash SHA-256 (16 car.) del JSON canónico de los parámetros.\\
+modelo_id & TEXT & — & no & \texttt{Qwen/Qwen3-8B}.\\
+modelo_revision & TEXT & — & no & Hash del commit de Hugging Face de los pesos.\\
+dtype & TEXT & — & no & \{bfloat16, float16\}. Base: \texttt{bfloat16}.\\
+max_model_len & INT32 & tokens & no & Longitud máxima de contexto.\\
+gpu_memory_utilization & REAL & fracción & no & Fracción de memoria reservada por vLLM (0–1).\\
+chunked_prefill & BOOL & — & no & Factor experimental CP (on/off).\\
+max_num_batched_tokens & INT32 & tokens & sí & Tokens máximos por paso del planificador.\\
+max_num_seqs & INT32 & secuencias & sí & Secuencias concurrentes máximas.\\
+prefix_caching & BOOL & — & no & Debe ser \texttt{false} en toda la campaña.\\
+enforce_eager & BOOL & — & no & \texttt{true} desactiva los CUDA graphs.\\
+temperatura & REAL & — & no & Muestreo; base 0 (greedy).\\
+ignore_eos & BOOL & — & no & \texttt{true}, para forzar la longitud de salida exacta.\\
+semilla & INT32 & — & no & Semilla global.\\
+args_cli & JSON & — & no & Línea de comandos completa, para auditoría.\\
+\end{diccionario}
+
+\subsection{\texttt{corrida}}
+Un punto de la matriz experimental en una repetición. Es la unidad mínima sobre la que se calculan los agregados.
+\begin{diccionario}
+run_id & UUID & — & no & \PK{} Identificador de la corrida.\\
+exp_id & TEXT & — & no & \FK{} $\rightarrow$ \texttt{experimento}.\\
+env_id & TEXT & — & no & \FK{} $\rightarrow$ \texttt{entorno}.\\
+config_id & TEXT & — & no & \FK{} $\rightarrow$ \texttt{config_servidor}.\\
+l_in & INT32 & tokens & no & Longitud de entrada objetivo $L_{in}$.\\
+l_out & INT32 & tokens & no & Longitud de salida objetivo $L_{out}$ (1 = prefill puro).\\
+concurrencia & INT32 & peticiones & no & Tamaño de lote / concurrencia $B$.\\
+tasa_llegada & REAL & req/s & sí & $\lambda$ de Poisson; nulo en modo offline.\\
+num_peticiones & INT32 & — & no & Peticiones medidas (sin contar el calentamiento).\\
+num_warmup & INT32 & — & no & Peticiones de calentamiento descartadas ($\geq 5$).\\
+repeticion & INT32 & — & no & Índice de repetición (1..R, $R \geq 5$).\\
+semilla_prompts & INT32 & — & no & Semilla del generador de prompts sintéticos.\\
+kv_capacidad_tokens & INT64 & tokens & sí & Capacidad de la caché KV reportada por vLLM al iniciar.\\
+inicio & TIMESTAMP & UTC & no & Inicio de la corrida.\\
+fin & TIMESTAMP & UTC & sí & Fin; nulo si la corrida se interrumpió.\\
+estado & TEXT & — & no & \{ok, oom, timeout, error, abortada\}.\\
+notas & TEXT & — & sí & Observaciones manuales.\\
+\end{diccionario}
+\textbf{Unicidad:} (\campo{exp_id}, \campo{env_id}, \campo{config_id}, \campo{l_in}, \campo{l_out}, \campo{concurrencia}, \campo{tasa_llegada}, \campo{repeticion}).
+
+\subsection{\texttt{peticion}}
+Una solicitud de inferencia enviada durante una corrida. Las marcas de tiempo se toman en el cliente.
+\begin{diccionario}
+req_id & UUID & — & no & \PK{}\\
+run_id & UUID & — & no & \FK{} $\rightarrow$ \texttt{corrida}.\\
+indice & INT32 & — & no & Orden de envío dentro de la corrida (0..n$-$1).\\
+es_warmup & BOOL & — & no & \texttt{true} si es una petición de calentamiento (se excluye del análisis).\\
+tokens_prompt & INT32 & tokens & no & Tokens reales del prompt (reportados por vLLM en \texttt{usage}).\\
+tokens_salida & INT32 & tokens & sí & Tokens generados; nulo si la petición falló.\\
+t_envio_ns & INT64 & ns & no & Envío de la petición.\\
+t_primer_token_ns & INT64 & ns & sí & Recepción del primer token.\\
+t_fin_ns & INT64 & ns & sí & Recepción del último token.\\
+ttft_ms † & REAL & ms & sí & $(t_{primer} - t_{envio}) / 10^6$.\\
+tpot_ms † & REAL & ms & sí & $(t_{fin} - t_{primer}) / \bigl(10^6 \cdot (\text{tokens\_salida} - 1)\bigr)$; nulo si $\text{tokens\_salida} \le 1$.\\
+e2e_ms † & REAL & ms & sí & $(t_{fin} - t_{envio}) / 10^6$.\\
+estado & TEXT & — & no & \{ok, error, abortada, timeout\}.\\
+codigo_error & TEXT & — & sí & Mensaje o código HTTP del error.\\
+\end{diccionario}
+
+\subsection{\texttt{evento_token}}
+Cada fragmento (\emph{chunk}) recibido por streaming. Permite calcular la distribución de ITL y detectar pausas causadas por el prefill de otras peticiones (E4).
+\begin{diccionario}
+req_id & UUID & — & no & \PK{} \FK{} $\rightarrow$ \texttt{peticion}.\\
+idx_token & INT32 & — & no & \PK{} Índice acumulado del primer token del fragmento.\\
+t_ns & INT64 & ns & no & Instante de recepción en el cliente.\\
+n_tokens_chunk & INT32 & tokens & no & Tokens en el fragmento (puede ser $>1$).\\
+itl_ms † & REAL & ms & sí & $(t_{ns} - t_{ns}^{\,anterior}) / (10^6 \cdot \text{n\_tokens\_chunk})$; nulo para el primer fragmento.\\
+\end{diccionario}
+
+\subsection{\texttt{muestra_gpu}}
+Telemetría de la GPU muestreada cada 100 ms mientras dura la corrida (\texttt{nvidia-smi --query-gpu} o DCGM).
+\begin{diccionario}
+run_id & UUID & — & no & \PK{} \FK{} $\rightarrow$ \texttt{corrida}.\\
+t_ns & INT64 & ns & no & \PK{} Instante de la muestra (mismo reloj que el cliente).\\
+util_gpu_pct & REAL & \% & no & Utilización de los SM.\\
+util_mem_pct & REAL & \% & no & Utilización del controlador de memoria.\\
+mem_usada_mib & REAL & MiB & no & Memoria de GPU en uso.\\
+potencia_w & REAL & W & no & Consumo instantáneo.\\
+reloj_sm_mhz & INT32 & MHz & no & Reloj de los SM (sirve para detectar \emph{throttling}).\\
+reloj_mem_mhz & INT32 & MHz & no & Reloj de la memoria.\\
+temperatura_c & REAL & °C & no & Temperatura de la GPU.\\
+throttle_razones & TEXT & — & sí & Máscara o texto de las razones de \emph{throttling}.\\
+\end{diccionario}
+
+\subsection{\texttt{muestra_vllm}}
+Estado interno del servidor, obtenido del endpoint Prometheus \texttt{/metrics} de vLLM (solo en modo online).
+\begin{diccionario}
+run_id & UUID & — & no & \PK{} \FK{} $\rightarrow$ \texttt{corrida}.\\
+t_ns & INT64 & ns & no & \PK{} Instante del scrape.\\
+pet_ejecutando & INT32 & — & no & Peticiones en ejecución.\\
+pet_esperando & INT32 & — & no & Peticiones en cola.\\
+kv_cache_uso_pct & REAL & \% & no & Ocupación de la caché KV en la GPU.\\
+preemptions_total & INT64 & — & no & Contador acumulado de preemptions.\\
+tokens_prompt_total & INT64 & tokens & no & Contador acumulado de tokens de prompt.\\
+tokens_generados_total & INT64 & tokens & no & Contador acumulado de tokens generados.\\
+\end{diccionario}
+
+\subsection{\texttt{ajuste_modelo}}
+Un modelo predictivo ajustado para una fase, válido para un entorno y una configuración.
+\begin{diccionario}
+fit_id & UUID & — & no & \PK{}\\
+fase & TEXT & — & no & \{prefill, decode, e2e, throughput\}.\\
+env_id & TEXT & — & no & \FK{} $\rightarrow$ \texttt{entorno}. El modelo solo es válido en ese hardware.\\
+config_id & TEXT & — & no & \FK{} $\rightarrow$ \texttt{config_servidor}.\\
+formula & TEXT & — & no & Forma funcional, p.\,ej. \texttt{a0 + a1*B*L + a2*B*L\^{}2}.\\
+metodo & TEXT & — & no & \{ols, nnls, wls, por\_tramos\}.\\
+variable_respuesta & TEXT & — & no & p.\,ej. \texttt{ttft_ms}, \texttt{t_paso_ms}.\\
+semilla_particion & INT32 & — & no & Semilla de la partición entrenamiento/prueba.\\
+frac_entrenamiento & REAL & fracción & no & 0,7–0,8.\\
+n_entrenamiento & INT32 & corridas & no & Corridas usadas para ajustar.\\
+n_prueba & INT32 & corridas & no & Corridas \emph{hold-out}.\\
+mape_pct & REAL & \% & no & Error porcentual absoluto medio en prueba.\\
+r2 & REAL & — & no & Coeficiente de determinación en prueba.\\
+rmse_ms & REAL & ms & no & Raíz del error cuadrático medio en prueba.\\
+rango_validez & JSON & — & no & Rangos de $L_{in}$, $B$ y $C$ cubiertos por el entrenamiento.\\
+creado_en & TIMESTAMP & UTC & no & Fecha del ajuste.\\
+\end{diccionario}
+
+\subsection{\texttt{coeficiente}}
+\begin{diccionario}
+fit_id & UUID & — & no & \PK{} \FK{} $\rightarrow$ \texttt{ajuste_modelo}.\\
+nombre & TEXT & — & no & \PK{} p.\,ej. \texttt{a0}, \texttt{a1}, \texttt{b2}.\\
+valor & REAL & var. & no & Valor estimado.\\
+error_estandar & REAL & var. & sí & Error estándar de la estimación.\\
+ic95_inf & REAL & var. & sí & Límite inferior del IC 95\,\%.\\
+ic95_sup & REAL & var. & sí & Límite superior del IC 95\,\%.\\
+unidad & TEXT & — & no & p.\,ej. \texttt{ms}, \texttt{ms/token}, \texttt{ms/token\^{}2}.\\
+\end{diccionario}
+
+\subsection{\texttt{ajuste_corrida}}
+Tabla puente N:M que registra qué corridas se usaron en cada ajuste y en qué partición.
+\begin{diccionario}
+fit_id & UUID & — & no & \PK{} \FK{} $\rightarrow$ \texttt{ajuste_modelo}.\\
+run_id & UUID & — & no & \PK{} \FK{} $\rightarrow$ \texttt{corrida}.\\
+particion & TEXT & — & no & \{entrenamiento, prueba\}.\\
+\end{diccionario}
+
+\subsection{Vista \texttt{resumen_corrida}}
+\textcolor{vista}{\textbf{Vista derivada}} (se materializa en Parquet y se recalcula con \texttt{analysis/load.py}). Contiene una fila por corrida con estado \texttt{ok}, calculada solo con peticiones \texttt{ok} y sin calentamiento.
+\begin{diccionario}
+run_id & UUID & — & no & \PK{} \FK{} $\rightarrow$ \texttt{corrida}.\\
+n_ok & INT32 & — & no & Peticiones válidas.\\
+ttft_media / p50 / p90 / p99 & REAL & ms & no & Estadísticos de \texttt{ttft_ms}.\\
+tpot_media / p50 / p99 & REAL & ms & sí & Estadísticos de \texttt{tpot_ms}.\\
+itl_p50 / p99 & REAL & ms & sí & Percentiles de \texttt{itl_ms} sobre todos los eventos.\\
+e2e_p50 / p99 & REAL & ms & no & Percentiles de \texttt{e2e_ms}.\\
+throughput_tok_s & REAL & tok/s & no & Tokens de salida por segundo (ec.~\ref{eq:thr}).\\
+throughput_req_s & REAL & req/s & no & Peticiones completadas por segundo.\\
+goodput_req_s & REAL & req/s & sí & Peticiones/s que cumplen el SLO (ec.~\ref{eq:good}).\\
+mfu_pct & REAL & \% & sí & Utilización de FLOPs; solo E1 (ec.~\ref{eq:mfu}).\\
+mbu_pct & REAL & \% & sí & Utilización de ancho de banda; solo E2 (ec.~\ref{eq:mbu}).\\
+util_gpu_media & REAL & \% & no & Media de \texttt{muestra_gpu.util_gpu_pct}.\\
+potencia_media_w & REAL & W & no & Media de \texttt{muestra_gpu.potencia_w}.\\
+energia_j_token & REAL & J/tok & no & Energía por token generado (ec.~\ref{eq:energia}).\\
+preemptions & INT64 & — & sí & Diferencia del contador durante la corrida.\\
+\end{diccionario}
+
+% ==========================================================
+\section{Métricas derivadas}
+% ==========================================================
+Sea $\mathcal{P}$ el conjunto de peticiones válidas de una corrida (estado \texttt{ok} y sin calentamiento). Las constantes del modelo son: $N \approx 8{,}2\times10^{9}$ parámetros; $W \approx 16{,}4$\,GB de pesos en BF16; $n_{capas}=36$; $d=4096$; caché KV de $k_{kv} = 2\cdot36\cdot8\cdot128\cdot2 = 147\,456$\,B por token.
+
+\begin{align}
+\text{throughput\_tok\_s} &= \frac{\sum_{p\in\mathcal{P}} \text{tokens\_salida}_p}{\bigl(\max_p t_{fin} - \min_p t_{envio}\bigr)/10^{9}} \label{eq:thr}\\[4pt]
+\text{goodput\_req\_s} &= \frac{\bigl|\{p\in\mathcal{P} : \text{ttft}_p \le \text{SLO}_{ttft} \wedge \text{tpot}_p \le \text{SLO}_{tpot}\}\bigr|}{\bigl(\max_p t_{fin} - \min_p t_{envio}\bigr)/10^{9}} \label{eq:good}\\[4pt]
+\text{MFU} &= \frac{B\left(2N L_{in} + 2\, n_{capas} L_{in}^{2}\, d\right)}{T_{prefill}\cdot P_{pico}} \times 100 \label{eq:mfu}\\[4pt]
+\text{MBU} &= \frac{W + B\cdot \bar{C}\cdot k_{kv}}{T_{paso}\cdot BW_{pico}} \times 100 \label{eq:mbu}\\[4pt]
+\text{energia\_j\_token} &= \frac{\sum_{i} P_i\,\Delta t_i}{\sum_{p\in\mathcal{P}} \text{tokens\_salida}_p} \label{eq:energia}
+\end{align}
+
+En (\ref{eq:mfu}), $T_{prefill}$ se aproxima con la mediana de TTFT de E1, ya que $L_{out}=1$, y el término de atención causal es una aproximación de primer orden. En (\ref{eq:mbu}), $T_{paso}$ es la mediana de TPOT y $\bar{C}$ es el contexto medio durante la generación ($L_{in} + L_{out}/2$). $P_{pico}$ y $BW_{pico}$ se toman de \texttt{entorno}. Los umbrales SLO se fijan en \texttt{SPEC.md} §16 (pendiente).
+
+% ==========================================================
+\section{Reglas de integridad y calidad}
+% ==========================================================
+\begin{enumerate}[label=\textbf{R\arabic*.}, leftmargin=*]
+  \item \textbf{Integridad referencial:} toda FK debe existir en la tabla padre. No se permiten huérfanos en \texttt{peticion}, \texttt{evento_token} ni en las muestras.
+  \item \textbf{Orden temporal:} $t_{envio} \le t_{primer\,token} \le t_{fin}$, y los \texttt{t_ns} de \texttt{evento_token} son crecientes por petición.
+  \item \textbf{Longitudes exactas:} en peticiones \texttt{ok}, $\text{tokens\_prompt} = l_{in}$ y $\text{tokens\_salida} = l_{out}$ (posible gracias a \texttt{ignore_eos}). Una diferencia invalida la corrida.
+  \item \textbf{Consistencia de streaming:} $\sum \text{n\_tokens\_chunk} = \text{tokens\_salida}$ por petición.
+  \item \textbf{Calentamiento:} las peticiones con \texttt{es_warmup = true} nunca entran en agregados ni ajustes.
+  \item \textbf{Corridas válidas:} solo las corridas con \texttt{estado = ok} y sin preemptions alimentan \texttt{resumen_corrida} y los ajustes (las que tienen preemptions se analizan aparte en E5).
+  \item \textbf{Aislamiento:} si durante la corrida \texttt{muestra_gpu} registra memoria de procesos ajenos o \emph{throttling} térmico, la corrida se marca en \texttt{notas} y se repite.
+  \item \textbf{Prefix caching:} \texttt{config_servidor.prefix_caching = false} en toda la campaña. Los prompts de una misma corrida deben ser distintos entre sí (semilla + índice).
+  \item \textbf{Particiones disjuntas:} dentro de un \texttt{fit_id}, ninguna combinación de factores aparece a la vez en entrenamiento y en prueba (todas sus repeticiones caen en la misma partición).
+  \item \textbf{Inmutabilidad:} los datos crudos (\texttt{data/raw}) son de solo escritura una vez. Las correcciones se hacen repitiendo la corrida, nunca editando archivos.
+\end{enumerate}
+
+% ==========================================================
+\section{Almacenamiento físico}
+% ==========================================================
+Los datos se persisten en \textbf{Apache Parquet} (columnar, con tipos y compresión \texttt{zstd}) y se consultan con pandas o DuckDB. No se requiere un servidor de base de datos.
+
+\begin{center}
+\begin{minipage}{0.9\linewidth}
+\small
+\begin{verbatim}
+data/
+  raw/                              # inmutable, una carpeta por corrida
+    <exp_id>/<run_id>/
+      manifest.json                 # corrida + config_servidor + entorno
+      peticiones.parquet
+      eventos_token.parquet
+      muestras_gpu.parquet
+      muestras_vllm.parquet         # solo modo online
+      vllm_server.log               # log completo del servidor
+  processed/                        # regenerable con analysis/load.py
+    entorno.parquet
+    experimento.parquet
+    config_servidor.parquet
+    corrida.parquet
+    peticion.parquet                # particionado por exp_id
+    evento_token.parquet            # particionado por exp_id
+    muestra_gpu.parquet
+    muestra_vllm.parquet
+    resumen_corrida.parquet         # vista materializada
+  modelos/                          # regenerable con analysis/fit.py
+    ajuste_modelo.parquet
+    coeficiente.parquet
+    ajuste_corrida.parquet
+\end{verbatim}
+\end{minipage}
+\end{center}
+
+\textbf{Volumen estimado:} la tabla más grande es \texttt{evento_token}. Con una matriz de unos 1\,500–3\,000 corridas, $\sim$100 peticiones por corrida y hasta 1\,024 tokens por petición, se esperan del orden de $10^{7}$–$10^{8}$ filas, unos pocos GB en Parquet comprimido. Esto es manejable en una sola máquina. Si el volumen fuera excesivo, en E1 y E5 se puede guardar solo el primer y el último evento.
+
+\textbf{Versionado:} \texttt{data/raw} se respalda fuera del repositorio Git (es demasiado grande). En el repositorio se versionan los \texttt{manifest.json}, \texttt{processed/resumen_corrida.parquet} y \texttt{modelos/}, que son pequeños y suficientes para reproducir las figuras de la memoria.
+
+% ==========================================================
+\section{Flujo de datos y linaje}
+% ==========================================================
+\begin{center}
+\begin{tikzpicture}[
+  box/.style={draw=uti, fill=utiLight, rounded corners=2pt, font=\small, align=center, minimum height=1.0cm, text width=2.5cm},
+  store/.style={draw=uti, fill=white, font=\small, align=center, minimum height=1.0cm, text width=2.5cm, double},
+  ar/.style={-{Stealth}, thick, draw=uti},
+  node distance=0.55cm and 0.55cm]
+\node[box] (cfg) {config YAML\\(matriz)};
+\node[box, right=of cfg] (run) {runner.py\\server + client\\+ telemetry};
+\node[store, right=of run] (raw) {data/raw\\(inmutable)};
+\node[box, right=of raw] (load) {load.py\\validación R1–R10};
+\node[store, below=of load] (proc) {data/processed\\+ resumen};
+\node[box, left=of proc] (fit) {fit.py\\roofline.py};
+\node[store, left=of fit] (mod) {data/modelos};
+\node[box, left=of mod] (fig) {figures.py\\$\rightarrow$ memoria\\LaTeX};
+\draw[ar] (cfg) -- (run);
+\draw[ar] (run) -- (raw);
+\draw[ar] (raw) -- (load);
+\draw[ar] (load) -- (proc);
+\draw[ar] (proc) -- (fit);
+\draw[ar] (fit) -- (mod);
+\draw[ar] (mod) -- (fig);
+\draw[ar] (proc.south) -- ++(0,-0.5) -| (fig.south);
+\end{tikzpicture}
+\end{center}
+
+Cada figura o tabla de la memoria incluye en su campo \emph{Fuente} los \texttt{run_id} o el \texttt{fit_id} de origen (RNF4 del SPEC), con lo que se cierra el linaje desde el dato crudo hasta el documento.
+
+% ==========================================================
+\section{Ejemplo de registros}
+% ==========================================================
+Valores ilustrativos (no son mediciones reales).
+
+\small
+\textbf{corrida}\\[2pt]
+\begin{tabular}{@{}lllrrrrll@{}}
+\toprule
+run\_id & exp\_id & config\_id & l\_in & l\_out & B & rep. & estado\\
+\midrule
+\texttt{3f2a…} & e1 & \texttt{9c01…} & 2048 & 1 & 8 & 1 & ok\\
+\texttt{77b0…} & e2 & \texttt{9c01…} & 128 & 1024 & 64 & 3 & ok\\
+\bottomrule
+\end{tabular}
+
+\vspace{0.8em}
+\textbf{peticion}\\[2pt]
+\begin{tabular}{@{}lllrrrr@{}}
+\toprule
+req\_id & run\_id & warmup & tok\_prompt & tok\_salida & ttft\_ms & tpot\_ms\\
+\midrule
+\texttt{a91e…} & \texttt{3f2a…} & false & 2048 & 1 & 412,7 & —\\
+\texttt{c4d2…} & \texttt{77b0…} & false & 128 & 1024 & 61,3 & 14,9\\
+\bottomrule
+\end{tabular}
+
+\vspace{0.8em}
+\textbf{ajuste\_modelo} y \textbf{coeficiente}\\[2pt]
+\begin{tabular}{@{}llllrr@{}}
+\toprule
+fit\_id & fase & fórmula & método & MAPE (\%) & $R^2$\\
+\midrule
+\texttt{e5f8…} & prefill & \texttt{a0 + a1·B·L + a2·B·L²} & nnls & 6,4 & 0,982\\
+\bottomrule
+\end{tabular}
+\quad
+\begin{tabular}{@{}lrl@{}}
+\toprule
+nombre & valor & unidad\\
+\midrule
+a0 & 18,2 & ms\\
+a1 & 0,051 & ms/token\\
+a2 & 2,1e-6 & ms/token²\\
+\bottomrule
+\end{tabular}
+\normalsize
+
+% ==========================================================
+\section{Decisiones abiertas}
+% ==========================================================
+\begin{itemize}[nosep]
+  \item Umbrales SLO para el goodput (\texttt{SPEC.md} §16).
+  \item Si en E1 y E5 se guardan todos los \texttt{evento_token} o solo el primero y el último (por volumen).
+  \item Periodo de muestreo de la telemetría (100 ms propuesto; DCGM permite resoluciones más finas).
+  \item Destino del respaldo de \texttt{data/raw} (disco institucional, Google Drive o almacenamiento en la nube).
+\end{itemize}
+
+\end{document}

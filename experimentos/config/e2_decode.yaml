@@ -1,0 +1,20 @@
+# E2 — Decode aislado: TPOT vs B (contexto corto) y vs contexto (B fijo) (SPEC §8.2).
+experimento:
+  exp_id: e2
+  nombre: Decode aislado
+  fase_objetivo: decode
+  modo_carga: offline
+  descripcion: Modelar TPOT, throughput de decode y MBU en función del tamaño de lote y de la longitud de contexto.
+ejecucion:
+  repeticiones: 5
+  num_warmup: 5
+  lotes_por_corrida: 3
+barridos:
+  # E2a: efecto del tamaño de lote con contexto pequeño
+  - l_in: [128]
+    l_out: [1024]
+    concurrencia: [1, 2, 4, 8, 16, 32, 64, 128, 256]
+  # E2b: efecto de la longitud de contexto con B fijo
+  - l_in: [512, 1024, 2048, 4096, 8192]
+    l_out: [1024]
+    concurrencia: [16]

@@ -1,0 +1,16 @@
+# E5 — Capacidad: barrido de tasa de llegada hasta saturar (SPEC §8.2).
+experimento:
+  exp_id: e5
+  nombre: Capacidad
+  fase_objetivo: capacidad
+  modo_carga: online
+  descripcion: Determinar el throughput máximo y la tasa de llegada de saturación.
+ejecucion:
+  repeticiones: 3
+  num_warmup: 5
+  num_peticiones: 300
+barridos:
+  - l_in: [1024]
+    l_out: [256]
+    concurrencia: [256]
+    tasa_llegada: [0.5, 1, 2, 4, 8, 12, 16, 20]
