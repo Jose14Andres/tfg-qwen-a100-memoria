@@ -18,9 +18,6 @@
 # --- Temporales de trabajo ---
 tmp_*
 
-# --- PDF compilado principal ---
-main.pdf
-
 # --- Material institucional / de trabajo (no publicar) ---
 uploads/
 prism-uploads/
