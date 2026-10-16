@@ -1,12 +1,26 @@
 % ============================================================
-% main.tex — Plantilla genérica para usar con uti_tfm.sty
-% Requiere en la misma carpeta del proyecto:
-%   - uti_tfm.sty
-%   - referencias.bib
+% main.tex — Memoria del Trabajo de Integración Curricular
+%   "Modelado experimental de las fases prefill y decode de
+%    Qwen3-8B en NVIDIA A100 mediante vLLM"
+%   Código institucional: ITI-TFG-B26-0017
+%   Autor: José Andrés Ureta Granda
+%   Tutor: Andrès Xavier Rubio Proaño
+%   Universidad Tecnológica Indoamérica — Facultad de Ingenierías
+%   Ingeniería en Tecnologías de la Información
+%
+% Requiere en la carpeta del proyecto:
+%   - uti_tfm.sty        (formato institucional UTI)
+%   - referencias.bib    (vLLM/PagedAttention, Orca, Sarathi-Serve,
+%                         DistServe, Splitwise, LLM-Viewer, Qwen3, ...)
 %   - Logos/LOGO-UTI-1.png
+%   - SPEC.md            (especificación del proyecto; fuente de los
+%                         contenidos de cada capítulo, ver su sección 15)
 %
 % Compilación recomendada (por Century Gothic):
 %   XeLaTeX → BibTeX → XeLaTeX → XeLaTeX
+%   (requiere la fuente Century Gothic instalada en el sistema)
+% Alternativa sin Century Gothic: latexmk -pdf main.tex
+%   (pdfLaTeX; el .sty usa TeX Gyre Adventor como sustituto)
 % ============================================================
 
 \documentclass[12pt,a4paper,oneside]{report}
@@ -14,34 +28,43 @@
 % Estilo UTI
 \usepackage{uti_tfm}
 
-% Referencias IEEE desde .bib (usa BibTeX)
-\usepackage[hidelinks]{hyperref} % opcional pero recomendado
+% Referencias IEEE desde referencias.bib (BibTeX + IEEEtran)
+\usepackage{cite}                        % ordena y comprime citas IEEE
+\renewcommand{\citepunct}{], [}         % [1], [2]
+\renewcommand{\citedash}{]--[}          % [1]--[3]
+\usepackage[hidelinks]{hyperref}
 % Compatibilidad con FirmaEC: evita que hyperref inserte /OpenAction.
 \hypersetup{pdfstartview=}
-\renewcommand{\bibname}{REFERENCIAS} % report/book
-% (si fuera article sería \renewcommand{\refname}{REFERENCIAS})
+\renewcommand{\bibname}{REFERENCIAS} % clase report
 
 \begin{document}
 
 % ==========================================================
 % PORTADA (sin numeración visible; NO cuenta para la numeración)
 % ==========================================================
-% Géneros permitidos: masculino | femenino
-% \UTIDatosAutores solicita por cada autor: nombre, género, cédula,
-% dirección, correo electrónico y teléfono.
-% Título en inglés utilizado en la página de Abstract:
-\UTIDatosTituloIngles{PROJECT TITLE IN ENGLISH}
-% Lectores: nombre y género de cada lector/a.
+% Título en inglés utilizado en la página de Abstract (traducción del
+% título de la portada; validar con el tutor, SPEC §16.6).
+\UTIDatosTituloIngles{Experimental Modeling of the Prefill and Decode Phases of Qwen3-8B on NVIDIA A100 Using vLLM}
+% Lectores: nombre y género (masculino | femenino) de cada lector/a.
+% PENDIENTE: completar cuando la Facultad designe a los lectores.
 \UTIDatosLector1{Nombres Apellidos}{masculino}
 \UTIDatosLector2{Nombres Apellidos}{femenino}
 %
-% CATÁLOGO DE LÍNEAS Y SUBLÍNEAS DE INVESTIGACIÓN
-% Copie el par indicado en: \UTISeleccionInvestigacion{línea}{sublínea}
+% LÍNEA Y SUBLÍNEA DE INVESTIGACIÓN
+% Se selecciona con: \UTISeleccionInvestigacion{línea}{sublínea}
+% Estado: seleccionada la propuesta; falta la confirmación del tutor
+% (SPEC §16.6).
+%   Seleccionada: {4}{6} Optimización del rendimiento
+%                 (modelado de latencia y throughput de prefill/decode).
+%   Alternativa:  {1}{3} Sistemas de almacenamiento y computación en la nube
+%                 (dimensionamiento de un servicio de LLM sobre GPU).
+%
+% Catálogo completo:
 %
 % LÍNEA 1: Análisis, diseño e implementación de infraestructura tecnológica
 %   {1}{1} Diseño y optimización de redes de comunicación.
 %   {1}{2} Ciberseguridad y protección de infraestructuras tecnológicas.
-%   {1}{3} Sistemas de almacenamiento y computación en la nube.
+%   {1}{3} Sistemas de almacenamiento y computación en la nube.  <- alternativa
 %   {1}{4} Automatización y gestión de infraestructuras inteligentes.
 %
 % LÍNEA 2: Redes informáticas de comunicación
@@ -67,28 +90,26 @@
 %   {4}{3} Integración de sistemas embebidos.
 %   {4}{4} Interoperabilidad entre plataformas.
 %   {4}{5} Seguridad en sistemas web, móviles y embebidos.
-%   {4}{6} Optimización del rendimiento.
+%   {4}{6} Optimización del rendimiento.                         <- seleccionada
 %   {4}{7} Aplicación de tecnologías emergentes.
 %   {4}{8} Sistemas basados en la nube y edge computing.
 %
-% Mantenga {0}{0} mientras la selección esté pendiente.
-% Ejemplo: \UTISeleccionInvestigacion{3}{2}
-\UTISeleccionInvestigacion{0}{0}
+% Si el tutor elige la alternativa, cambiar a
+% \UTISeleccionInvestigacion{1}{3}. El valor se imprime en la sección
+% "Área de Estudio" del Capítulo II.
+\UTISeleccionInvestigacion{4}{6}
 \UTIPortada
-{LOGO-UTI-1.png} % Logo (ruta)
+{LOGO-UTI-1.png} % Logo (se busca en Logos/)
 {FACULTAD DE INGENIERÍAS} % Facultad
-{INGENIERÍA EN TECNOLOGÍAS DE LA INFORMACIÓN} % Programa
+{INGENIERÍA EN TECNOLOGÍAS DE LA INFORMACIÓN} % Carrera
 {Modelado experimental de las fases prefill y decode de Qwen3-8B en NVIDIA A100 mediante vLLM} % Tema / Título
-{Trabajo de Titulación modalidad Trabajo de Integración Curricular} % Texto tipo de trabajo
-% Un autor:
-%{\UTIDatosAutores
-%  {Nombres Apellidos}{femenino}{0000000000}
-%  {Provincia, ciudad, parroquia, barrio}{correo@ejemplo.com}{0999999999}}
-% Autor del proyecto:
+{Trabajo de Titulación modalidad Trabajo de Integración Curricular} % Modalidad
+% Autor único del proyecto. \UTIDatosAutores recibe: nombre, género,
+% cédula, dirección, correo electrónico y teléfono.
 {\UTIDatosAutores
   {José Andrés Ureta Granda}{masculino}{1751545185}
   {Pichincha, Quito, Belisario Quevedo, La Gasca}{andredks334@gmail.com}{0939116995}} % Autor
-{\UTIDatosTutor{Andrès Xavier Rubio Proaño}{masculino}} % Tutor/a
+{\UTIDatosTutor{Andrès Xavier Rubio Proaño}{masculino}} % Tutor
 {Quito, Ecuador} % Ciudad, País
 {2026} % Año
 
@@ -97,12 +118,16 @@
 % ==========================================================
 \UTIFrontMatter
 
+% Autorización para el Repositorio Digital Institucional (RDI-UTI)
 \input{Preliminares/01_RepositorioDigital}
 
+% Aprobación del tutor
 \input{Preliminares/02_AprobaciónTutor}
 
+% Declaración de autenticidad del autor
 \input{Preliminares/03_DeclaraciónAutenticidad}
 
+% Aprobación de lectores (depende de \UTIDatosLector1/2)
 \input{Preliminares/04_AprobaciónLectores}
 
 \input{Preliminares/05_Dedicatoria}
@@ -110,12 +135,15 @@
 \input{Preliminares/06_Agradecimiento}
 
 % --------------------------
-% ÍNDICES (según el .sty)
+% ÍNDICES (contenidos, tablas, figuras, etc.; según el .sty)
 % --------------------------
 \input{Preliminares/07_Índices}
 
+% Resumen: fases prefill/decode, banco de pruebas con vLLM en A100,
+% modelos predictivos de TTFT, TPOT y throughput, y su validación.
 \input{Preliminares/08_Resumen}
 
+% Abstract (usa el título en inglés definido arriba)
 \input{Preliminares/09_Abstract}
 % ==========================================================
 % CUERPO (arábigos CONTINUANDO el contador desde los romanos)
@@ -124,32 +152,65 @@
 \UTIMainMatter
 
 % ==========================================================
-% CAPÍTULO I (se mostrará como: CAPÍTULO I)
+% CAPÍTULO I — INTRODUCCIÓN
+%   Contextualización, problema y justificación: dimensionamiento de
+%     servicios de LLM y métricas agregadas que mezclan prefill y decode
+%     (SPEC §1–2).
+%   Estado del arte (>= 5 trabajos IEEE): vLLM/PagedAttention, Orca,
+%     Sarathi-Serve, DistServe, Splitwise, LLM-Viewer/roofline, Qwen3.
+%   Objetivos OE1–OE4 y alcance: un modelo (Qwen3-8B, BF16), un motor
+%     (vLLM) y una GPU NVIDIA A100 (SPEC §3–4).
+%   Fundamentación teórica: prefill/decode, caché KV, continuous batching,
+%     chunked prefill, modelo roofline, MFU y MBU (SPEC §6).
 % ==========================================================
 \input{Capítulos/01_Introducción}
 % ==========================================================
-% CAPÍTULO II
+% CAPÍTULO II — METODOLOGÍA
+%   Diagnóstico y área de estudio: entorno de hardware y software
+%     (SPEC §2 y §5); aquí se imprime la línea/sublínea seleccionada.
+%   Metodología: enfoque experimental cuantitativo con diseño factorial
+%     sobre L_in, L_out, concurrencia B, chunked prefill y tasa de
+%     llegada λ; experimentos E1–E5 (SPEC §8).
+%   Técnicas e instrumentos: cliente con streaming, nvidia-smi/DCGM y
+%     métricas Prometheus de vLLM.
+%   Requerimientos RF1–RF7 y RNF1–RNF5, diseño del banco de pruebas y
+%     configuración base de vLLM (SPEC §7, §11 y §12).
 % ==========================================================
 \input{Capítulos/02_Metodología}
 % ==========================================================
-% CAPÍTULO III
+% CAPÍTULO III — IMPLEMENTACIÓN, PRUEBAS Y RESULTADOS
+%   Implementación del banco de pruebas (bench/ y analysis/).
+%   Campaña experimental E1–E5: prefill aislado, decode aislado,
+%     extremo a extremo, interferencia y capacidad.
+%   Ajuste y validación hold-out de los modelos de TTFT, TPOT y E2E
+%     frente a los criterios de aceptación CA1–CA6 y a las cotas
+%     roofline (SPEC §8–10).
+%   Cronograma y presupuesto de horas-GPU (SPEC §13).
 % ==========================================================
 \input{Capítulos/03_Implementación}
 % ==========================================================
-% CAPÍTULO IV
+% CAPÍTULO IV — CONCLUSIONES Y RECOMENDACIONES
+%   Conclusiones por objetivo específico (OE1–OE4) y recomendaciones.
+%   Trabajos futuros: cuantización (FP8/AWQ), multi-GPU, desagregación
+%     prefill/decode, otros motores y otros modelos.
 % ==========================================================
 \input{Capítulos/04_Conclusiones}
 % ==========================================================
-% REFERENCIAS (capítulo NO numerado, en índice, IEEE desde .bib)
+% REFERENCIAS (capítulo NO numerado, en índice, IEEE desde referencias.bib)
 % ==========================================================
 \input{Capítulos/05_Referencias}
 % ==========================================================
 % GLOSARIO (capítulo NO numerado)
+%   Términos y siglas del trabajo: prefill, decode, TTFT, TPOT, ITL,
+%   caché KV, PagedAttention, continuous batching, chunked prefill,
+%   goodput, MFU, MBU, roofline, etc.
 % ==========================================================
 
 \input{Capítulos/06_Glosario}
 % ==========================================================
 % ANEXOS (ANEXO A, ANEXO B, ... + Índice de Anexos)
+%   Incluir el enlace al repositorio con el código, los datos crudos
+%   y el entorno versionado (criterio de aceptación CA6).
 % ==========================================================
 \UTIAppendixMatter
 

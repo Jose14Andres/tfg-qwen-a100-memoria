@@ -1,0 +1,18 @@
+# Configuración base de vLLM común a todos los experimentos (SPEC §7).
+# Cada experimento puede sobrescribir campos en su bloque `servidor:`.
+modelo_id: Qwen/Qwen3-8B
+modelo_revision: main          # [DECIDIR] fijar el hash del commit de HF antes de la campaña
+dtype: bfloat16
+max_model_len: 32768
+gpu_memory_utilization: 0.90
+chunked_prefill: true
+max_num_batched_tokens: null   # null = valor por defecto de vLLM; se registra el efectivo
+max_num_seqs: 256
+prefix_caching: false          # regla R8: siempre false
+enforce_eager: false
+temperatura: 0.0
+ignore_eos: true
+semilla: 0
+# Tokens que caben en la caché KV. Valor conservador para A100 80 GB (~380k teóricos).
+# [DECIDIR] ajustar con la capacidad que reporte vLLM en la corrida piloto (40 GB: ~100000).
+limite_tokens_kv: 300000

@@ -1,0 +1,17 @@
+# E4 — Interferencia prefill/decode con llegadas de Poisson (SPEC §8.2).
+experimento:
+  exp_id: e4
+  nombre: Interferencia
+  fase_objetivo: interferencia
+  modo_carga: online
+  descripcion: Medir la penalización del prefill de peticiones nuevas sobre el decode de las activas, con chunked prefill on/off.
+ejecucion:
+  repeticiones: 5
+  num_warmup: 5
+  num_peticiones: 200
+barridos:
+  - l_in: [1024, 4096]
+    l_out: [256]
+    concurrencia: [256]        # límite de peticiones en vuelo del cliente
+    tasa_llegada: [1, 2, 4, 8]
+    chunked_prefill: [false, true]

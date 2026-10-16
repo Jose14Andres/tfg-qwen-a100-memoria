@@ -1,0 +1,16 @@
+# E1 — Prefill aislado: TTFT vs L_in y B con L_out = 1 (SPEC §8.2).
+experimento:
+  exp_id: e1
+  nombre: Prefill aislado
+  fase_objetivo: prefill
+  modo_carga: offline
+  descripcion: Modelar TTFT, throughput de prefill y MFU en función de la longitud de entrada y del tamaño de lote.
+ejecucion:
+  repeticiones: 5
+  num_warmup: 5
+  lotes_por_corrida: 10        # cada corrida ejecuta 10 lotes de B peticiones
+barridos:
+  - l_in: [128, 256, 512, 1024, 2048, 4096, 8192, 16384]
+    l_out: [1]
+    concurrencia: [1, 2, 4, 8, 16, 32, 64]
+    chunked_prefill: [false, true]

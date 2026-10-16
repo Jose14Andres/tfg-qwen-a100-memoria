@@ -1,63 +1,178 @@
 \chapter{Introducción}
 \label{chap:introduccion}
 
-\section{Contextualización}
-\textit{[Describir el entorno donde se identifica la necesidad del proyecto, indicando el sector, área de aplicación y situación actual. Incluir información relevante de la entidad receptora o del contexto donde se implementará la solución.]}
+\section{Antecedentes}
+\label{sec:cap1:antecedentes}
 
+\subsection{Contexto}
+\label{sec:cap1:contexto}
 
-\section{Estado del Arte}
-\textit{[Presentar la revisión de soluciones, tecnologías, metodologías o proyectos similares relacionados con el tema del proyecto. Analizar mínimo cinco (5) trabajos provenientes de fuentes académicas, técnicas o industriales, citados según normas IEEE. Incluir comparación, ventajas, limitaciones y relación con el proyecto propuesto.]}
+Los modelos de lenguaje de gran tamaño (LLM, por sus siglas en inglés) se han incorporado a asistentes conversacionales, sistemas de consulta documental y flujos de procesamiento automático de texto. La mayoría de estos modelos se basa en la arquitectura Transformer~\cite{vaswani2017attention}. Una vez entrenado, cada modelo se ejecuta en modo de inferencia ante cada solicitud recibida. El costo de servirlo se acumula, por tanto, durante toda su vida operativa.
 
-Ejemplo de redacción con citas IEEE: para fundamentar una propuesta tecnológica se puede citar el estado del arte en inteligencia artificial y aprendizaje profundo en \cite{vaswani2017attention,goodfellow2016deep}. Del mismo modo, para enfoques de ingeniería de software y proceso de desarrollo pueden emplearse fuentes como \cite{sommerville2016software,boehm1988spiral}.
+La inferencia de un LLM se desarrolla en dos fases con comportamientos distintos. La fase prefill procesa el texto de entrada de la solicitud, o prompt, y produce el primer token de salida. La fase decode genera los tokens restantes de uno en uno, de forma autorregresiva. Durante ambas fases, el modelo conserva en la memoria de la unidad de procesamiento gráfico (GPU) las claves y los valores de atención de los tokens previos; esta estructura se denomina KV cache.
 
-\section{Planteamiento del Problema}
-\textit{[Definir de forma clara y precisa el problema o brecha tecnológica identificada. Describir las causas que lo originan y los efectos que genera en el contexto analizado. No incluir la solución en esta sección.]}
+La distinción entre prefill y decode ocupa un lugar central en los trabajos revisados en la Sección~\ref{sec:cap1:estado-arte}. Cada fase somete a la GPU a exigencias diferentes. La configuración de inferencia elegida determina el reparto de recursos entre ambas fases y condiciona la experiencia de los usuarios.
 
-\section{Justificación}
-\textit{[Redactar un texto argumentativo que exponga la importancia del proyecto, su impacto técnico y operativo, la utilidad de la solución, los beneficiarios directos e indirectos y la factibilidad técnica y operativa de su implementación.]}
+El presente trabajo de fin de grado (TFG) se enmarca en el proyecto LLM-CoDesign. Este proyecto caracteriza la inferencia de modelos de lenguaje considerando conjuntamente el modelo, la carga de trabajo, el hardware y el software. Su alcance general comprende múltiples modelos, GPU, motores y métricas durante cinco años. El TFG reduce ese alcance a un caso experimental controlado y constituye el primer caso de estudio del proyecto.
 
-\section{Objetivos}
-\subsection{Objetivo General}
-\textit{[Redactar el propósito principal del proyecto, alineado con la solución propuesta e incluyendo explícitamente su implementación.]}
-\subsection{Objetivos Específicos}
-\textit{[Enumerar acciones concretas, medibles y verificables que permitan alcanzar el objetivo general. Los objetivos deben cubrir análisis, diseño, implementación y validación.]}
+El caso seleccionado combina el modelo Qwen3-8B, perteneciente a la familia Qwen3~\cite{qwen2025qwen3}, con una GPU NVIDIA A100 y el motor de inferencia vLLM. La A100 se comercializa en variantes de 40~GB y 80~GB de memoria~\cite{nvidia2021a100}.
 
-\section{Alcance del Proyecto}
-\textit{[Delimitar los límites del proyecto, especificando claramente los componentes, módulos o funcionalidades que se incluyen, así como aquellos que se excluyen.]}
+\subsection{Estado del arte}
+\label{sec:cap1:estado-arte}
 
-\section{Fundamentación Teórica}
-\textit{[Desarrollar los fundamentos teóricos, conceptos, modelos y tecnologías que sustentan el proyecto. Debe estar relacionado directamente con la solución propuesta y su implementación, aplicable a software, hardware o infraestructura.]}
+La literatura sobre inferencia de LLM se concentra en mecanismos de sistema orientados a aprovechar mejor la GPU. Las líneas principales abarcan la planificación de solicitudes, la gestión de memoria, los kernels de atención, el tratamiento diferenciado de las fases y la cuantización. Esta sección revisa seis trabajos representativos de esas líneas y los relaciona con el presente TFG.
 
-\subsection{Ejemplo de Figura 1}
-Como ejemplo de referencia dentro del texto: en la Figura~\ref{fig:ejemplo_1} se presenta un recurso visual demostrativo que guía el formato esperado para los gráficos del documento.
+Yu et al.~\cite{yu2022orca} proponen Orca, un motor de inferencia que planifica la ejecución a nivel de iteración en lugar de a nivel de solicitud. Con esta estrategia, el sistema incorpora solicitudes nuevas al lote y retira las finalizadas en cada paso de generación. Orca reserva el espacio del KV cache de cada solicitud en bloques contiguos dimensionados de antemano; esta reserva desperdicia una parte de la memoria disponible~\cite{kwon2023pagedattention}.
 
-\begin{figure}[htbp]
-  \centering
-  \includegraphics[width=0.80\textwidth]{Capítulos/fig/fig_ejemplo_1.png}
-  \caption{Ejemplo de figura para guiar el formato de gráficos en el documento.}
-  \label{fig:ejemplo_1}
-\end{figure}
-\elaboradopor{Estudiante}
-\fuente{Elaboración propia}
+Kwon et al.~\cite{kwon2023pagedattention} presentan PagedAttention, un mecanismo que gestiona el KV cache en bloques de tamaño fijo, de forma análoga a la memoria virtual paginada de un sistema operativo. La gestión paginada reduce la fragmentación de la memoria y permite compartir bloques entre solicitudes. Sobre este mecanismo, los autores construyen vLLM, un motor de inferencia que combina la gestión paginada con la planificación a nivel de iteración, conocida como batching continuo. vLLM es el motor de inferencia empleado en este trabajo.
 
-\subsection{Ejemplo de Tabla 1}
-Como ejemplo de referencia cruzada en párrafo: la Tabla~\ref{tab:ejemplo_1} resume indicadores base que luego pueden compararse con los resultados de implementación.
+Dao et al.~\cite{dao2022flashattention} desarrollan FlashAttention, un algoritmo de atención exacta que reduce los accesos a la memoria de alto ancho de banda de la GPU mediante el procesamiento por bloques. Su aporte pone de relieve el peso del movimiento de datos entre niveles de memoria en el costo de la atención. Esta perspectiva resulta pertinente para interpretar los cuellos de botella de cada fase.
+
+Agrawal et al.~\cite{agrawal2024sarathi} estudian el compromiso entre throughput y latencia en la inferencia de LLM; el throughput se entiende aquí como el número de tokens procesados por segundo. Los autores observan que la incorporación del prefill de solicitudes nuevas a un lote interrumpe la generación de las solicitudes en decode. Los autores proponen Sarathi-Serve como respuesta; este motor de inferencia divide el prefill en fragmentos (chunked prefill) y los planifica sin detener la generación en curso. La coexistencia de ambas fases en un mismo lote condiciona la manera de medirlas por separado.
+
+Zhong et al.~\cite{zhong2024distserve} proponen DistServe, un motor de inferencia que asigna prefill y decode a GPU distintas para eliminar la interferencia entre fases. Su análisis caracteriza prefill como una fase limitada por el cómputo y decode como una fase limitada por el ancho de banda de memoria. Los autores evalúan cada fase con una métrica propia: el TTFT (\textit{time to first token}), tiempo hasta el primer token, asociado a prefill; y el TPOT (\textit{time per output token}), tiempo por token de salida, asociado a decode.
+
+Lin et al.~\cite{lin2024awq} proponen AWQ, un método de cuantización de solo pesos a baja precisión. El método protege los pesos más relevantes a partir de la distribución de las activaciones. La representación de los pesos con 4 bits (AWQ INT4) reduce la memoria ocupada por el modelo frente al formato de coma flotante de 16 bits BF16. Este TFG compara ambas representaciones numéricas.
+
+La Tabla~\ref{tab:cap1:estado-arte} resume el aporte, la limitación principal y la relación de cada trabajo con el presente TFG. Los seis trabajos proponen o evalúan mecanismos de sistema; ninguno caracteriza la combinación de Qwen3-8B, A100 y vLLM. Todos ellos son anteriores a la publicación de la familia Qwen3~\cite{qwen2025qwen3}.
 
 \begin{table}[htbp]
   \centering
-  \caption{Ejemplo de tabla para registrar métricas iniciales del diagnóstico.}
-  \label{tab:ejemplo_1}
-  \begin{tabular}{|l|c|c|}
+  \caption{Comparación de los trabajos revisados en el estado del arte.}
+  \label{tab:cap1:estado-arte}
+  \small
+  \begin{tabular}{|p{0.17\textwidth}|p{0.23\textwidth}|p{0.23\textwidth}|p{0.23\textwidth}|}
     \hline
-    Indicador & Valor actual & Meta \\
+    \textbf{Trabajo} & \textbf{Aporte principal} & \textbf{Limitación principal} & \textbf{Relación con el TFG} \\
     \hline
-    Tiempo de respuesta (ms) & 850 & 400 \\
+    Orca~\cite{yu2022orca} & Planificación a nivel de iteración & Reserva contigua del KV cache & Origen del batching continuo de vLLM \\
     \hline
-    Disponibilidad (\%) & 96.2 & 99.0 \\
+    vLLM~\cite{kwon2023pagedattention} & Gestión paginada del KV cache & No separa el análisis por fases & Motor de inferencia del TFG \\
     \hline
-    Incidencias mensuales & 14 & 6 \\
+    FlashAttention \cite{dao2022flashattention} & Atención exacta con menos accesos a memoria & Optimiza un kernel aislado & Interpretación de cuellos de botella \\
+    \hline
+    Sarathi-Serve~\cite{agrawal2024sarathi} & Chunked prefill sin detener decode & Mezcla ambas fases en un mismo lote & Condiciona la medición por fases \\
+    \hline
+    DistServe~\cite{zhong2024distserve} & Separación de prefill y decode en GPU distintas & Requiere varias GPU & Define TTFT y TPOT por fase \\
+    \hline
+    AWQ~\cite{lin2024awq} & Cuantización de pesos a 4 bits & Posible degradación de calidad & Representación AWQ INT4 evaluada \\
     \hline
   \end{tabular}
 \end{table}
-\elaboradopor{Estudiante}
-\fuente{Datos de levantamiento inicial}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Elaboración propia}
+
+\section{Planteamiento del problema}
+\label{sec:cap1:planteamiento}
+
+La selección de una configuración de inferencia suele basarse en métricas agregadas, como los tokens por segundo, sin distinguir el comportamiento de las fases prefill y decode. Una métrica agregada resume en una sola cifra dos procesos con exigencias distintas sobre la GPU~\cite{zhong2024distserve}. El resultado es una visión incompleta del sistema.
+
+Esta práctica impide explicar varios fenómenos relevantes para el despliegue. No permite justificar por qué una configuración mejora el throughput y empeora la latencia interactiva. La práctica deja sin aclarar en qué casos la cuantización permite aumentar la concurrencia, entendida como el número de solicitudes simultáneas. Deja sin explicar, además, la influencia de la longitud de entrada, es decir, el número de tokens del prompt, sobre el TTFT; y la del crecimiento del KV cache sobre la latencia durante decode.
+
+La consecuencia práctica es la dificultad para elegir una configuración adecuada según el uso previsto. Un servicio de chat interactivo, una consulta documental basada en recuperación (RAG) y un procesamiento por lotes imponen prioridades diferentes. Una configuración apropiada para un escenario puede resultar inadecuada para otro.
+
+Qwen3-8B puede ejecutarse sin dificultad en una A100. Esta posibilidad no garantiza la existencia de una configuración universalmente óptima. El rendimiento depende de la carga de trabajo, del nivel de concurrencia y de la representación numérica del modelo; para esta combinación concreta no se dispone de una caracterización experimental que separe ambas fases.
+
+\section{Formulación del problema}
+\label{sec:cap1:formulacion}
+
+El problema se formula mediante la siguiente pregunta principal: ¿cómo influyen la cuantización, la longitud de contexto y la concurrencia en el comportamiento de las fases prefill y decode de Qwen3-8B, ejecutado mediante vLLM sobre una GPU NVIDIA A100, en términos de rendimiento, memoria, energía y calidad?
+
+La longitud de contexto se controla mediante la longitud de entrada y la longitud de salida, definida como el número de tokens generados por solicitud. De la pregunta principal se derivan las siguientes preguntas específicas:
+
+\begin{enumerate}
+  \item ¿Cómo cambia el TTFT cuando aumenta la longitud de entrada?
+  \item ¿Cómo cambia el TPOT cuando aumenta la concurrencia?
+  \item ¿Cómo influye la longitud de salida en la latencia y en la energía?
+  \item ¿Cuánta memoria ocupan las representaciones numéricas BF16 y AWQ INT4?
+  \item ¿En qué condiciones la cuantización mejora la capacidad del sistema?
+  \item ¿Qué configuraciones producen saturación o errores por falta de memoria?
+  \item ¿Cuáles son los principales cuellos de botella de cada fase?
+  \item ¿Con qué error estima un modelo predictivo básico el TTFT y el TPOT a partir de las variables experimentales?
+\end{enumerate}
+
+\section{Objetivos}
+\label{sec:cap1:objetivos}
+
+\subsection{Objetivo general}
+\label{sec:cap1:objetivo-general}
+
+Caracterizar y modelar experimentalmente el comportamiento de las fases prefill y decode de Qwen3-8B sobre una GPU NVIDIA A100, evaluando el efecto de la cuantización, la longitud de contexto y la concurrencia sobre el rendimiento, la memoria, la energía y la calidad.
+
+\subsection{Objetivos específicos}
+\label{sec:cap1:objetivos-especificos}
+
+{\setlength{\emergencystretch}{1em}% evita desbordes en los OE literales
+\begin{itemize}
+  \item[OE1.] Implementar un entorno reproducible para ejecutar Qwen3-8B mediante vLLM sobre una A100.
+  \item[OE2.] Diseñar un benchmark parametrizable para generar cargas con diferentes longitudes de entrada, salida y niveles de concurrencia.
+  \item[OE3.] Medir TTFT, TPOT, throughput, memoria GPU, utilización y consumo energético.
+  \item[OE4.] Analizar separadamente las fases prefill y decode e identificar sus principales cuellos de botella.
+  \item[OE5.] Construir un modelo predictivo básico para estimar TTFT y TPOT.
+\end{itemize}}
+
+Para OE5, la ficha institucional establece como meta referencial un error porcentual absoluto medio (MAPE) inferior al 15--20~\% en las métricas principales. Esta meta es ajustable después de los experimentos piloto. No constituye, por tanto, un compromiso cerrado sobre la precisión del modelo predictivo.
+
+\section{Justificación}
+\label{sec:cap1:justificacion}
+
+Desde el punto de vista técnico, el análisis separado de prefill y decode aporta una explicación de los compromisos entre latencia, throughput y memoria. Las métricas agregadas registran estos compromisos sin explicarlos. Williams et al.~\cite{williams2009roofline} proponen el modelo roofline, que relaciona el rendimiento alcanzable con los límites de cómputo y de ancho de banda de memoria del procesador. Este marco ofrece una referencia para situar cada fase respecto a los límites de la A100 y sustenta el análisis de cuellos de botella de OE4.
+
+Desde el punto de vista operativo, el trabajo orienta la elección de configuraciones para tres escenarios de uso. El chat interactivo prioriza un TTFT y un TPOT bajos. La consulta documental requiere un equilibrio entre longitud de entrada, latencia y memoria; el procesamiento por lotes prioriza el throughput y la eficiencia energética.
+
+La utilidad del trabajo se materializa en el prototipo Qwen-A100 Profiler. Esta herramienta automatiza la ejecución de los experimentos, recolecta las métricas, almacena los resultados de forma estructurada y estima el TTFT y el TPOT mediante el modelo predictivo de OE5. El conjunto de datos experimental y los procedimientos de reproducción completan los entregables reutilizables.
+
+El beneficiario directo es el proyecto LLM-CoDesign, que obtiene su primer caso de estudio y una metodología de caracterización aplicable a otras combinaciones de modelo, hardware y software. Los beneficiarios indirectos son los equipos técnicos que despliegan LLM en infraestructura propia y necesitan criterios cuantitativos para configurar el servicio.
+
+El trabajo es factible en el plano técnico. Qwen3-8B cabe en la memoria de una única A100, y las herramientas necesarias (vLLM, NVML, DCGM y las bibliotecas de análisis de datos) son de libre acceso. El trabajo no requiere entrenar el modelo, desarrollar kernels de GPU ni modificar internamente vLLM. En el plano operativo, el plan de trabajo comprende doce semanas con una dedicación de 15 a 20 horas semanales; la factibilidad depende de disponer de acceso controlado a la GPU durante las campañas de medición.
+
+\section{Alcance y delimitaciones}
+\label{sec:cap1:alcance}
+
+\subsection{Alcance}
+\label{sec:cap1:alcance-incluye}
+
+La unidad de análisis es la configuración experimental $C = (M, W, H, S)$. En ella, $M$ es el modelo Qwen3-8B; $W$, las características de la carga de trabajo; $H$, una GPU NVIDIA A100; y $S$, vLLM con sus parámetros de configuración. La variante exacta de la A100, de 40~GB u 80~GB, se documenta como parte del entorno experimental, porque su capacidad de memoria condiciona los niveles máximos de contexto y concurrencia alcanzables.
+
+Las variables experimentales y sus niveles son los siguientes:
+
+\begin{itemize}
+  \item Representación numérica: BF16 y AWQ INT4 (2 niveles).
+  \item Longitud de entrada: 128, 512, 2048 y 8192 tokens (4 niveles).
+  \item Longitud de salida: 64 y 256 tokens (2 niveles).
+  \item Concurrencia: 1, 4, 8 y 16 solicitudes simultáneas (4 niveles).
+\end{itemize}
+
+La combinación de los niveles produce $2 \times 4 \times 2 \times 4 = 64$ configuraciones. Con cinco repeticiones por configuración, la campaña comprende alrededor de 320 ejecuciones medidas. Las configuraciones se agrupan además en tres tipos de carga de trabajo: chat corto, consulta documental y contexto largo.
+
+Las métricas registradas son el TTFT, el TPOT, el throughput, la latencia total de la solicitud, la memoria máxima utilizada, la utilización de la GPU, la potencia media y la energía estimada por token. La energía se presenta como una estimación basada en la telemetría interna de la GPU, obtenida mediante NVML y DCGM. No constituye una medición eléctrica calibrada externamente.
+
+El alcance incluye una comparación limitada de calidad entre BF16 y AWQ INT4 para identificar posibles degradaciones asociadas a la cuantización. Incluye también el prototipo Qwen-A100 Profiler en su versión de producto mínimo viable, con una recomendación básica de configuraciones para los tres escenarios de uso.
+
+\subsection{Delimitaciones}
+\label{sec:cap1:delimitaciones}
+
+El trabajo excluye de forma explícita los siguientes elementos:
+
+\begin{itemize}
+  \item Entrenamiento completo o fine-tuning del modelo.
+  \item Comparación con otras familias de LLM.
+  \item Evaluación de múltiples GPU y ejecución multi-GPU.
+  \item Paralelismo tensorial o de pipeline.
+  \item Comparación entre varios motores de inferencia.
+  \item Modelos Mixture-of-Experts o multimodales.
+  \item Speculative decoding.
+  \item Longitudes de entrada superiores a 8192 tokens en la campaña principal.
+  \item Predicción del comportamiento en otro hardware.
+  \item Simulación de sistemas distribuidos.
+  \item Desarrollo completo del asesor multiobjetivo de LLM-CoDesign.
+\end{itemize}
+
+Las conclusiones del trabajo serán válidas únicamente para la combinación de Qwen3-8B, NVIDIA A100 y vLLM. No se formularán afirmaciones de superioridad general sobre otras plataformas o modelos.
+
+% PENDIENTE (opción (a) aprobada por el autor): esta sección se redacta en
+% una sesión posterior. Aquí irá el marco teórico (Transformer, GQA
+% [ainslie2023gqa], KV cache, PagedAttention, AWQ, roofline, etc.).
+\section{Fundamentación teórica}
+\label{sec:cap1:fundamentacion}
+\textit{[Desarrollar los fundamentos teóricos, conceptos, modelos y tecnologías que sustentan el proyecto. Debe estar relacionado directamente con la solución propuesta y su implementación, aplicable a software, hardware o infraestructura.]}
