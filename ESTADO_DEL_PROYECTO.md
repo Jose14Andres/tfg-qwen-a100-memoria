@@ -5,7 +5,7 @@
 | Campo | Valor |
 |---|---|
 | Autor | José Andrés Ureta Granda |
-| Tutor | Andrès Xavier Rubio Proaño |
+| Tutor | Andrés Xavier Rubio Proaño |
 | Institución | Universidad Tecnológica Indoamérica — Facultad de Ingenierías, Ingeniería en Tecnologías de la Información |
 | Modalidad | Trabajo de Integración Curricular |
 | Fecha de corte de este documento | 2026-10-13 |

@@ -3,7 +3,7 @@
 **Código institucional:** ITI-TFG-B26-0017
 
 - **Autor:** José Andrés Ureta Granda
-- **Tutor:** Andrès Xavier Rubio Proaño
+- **Tutor:** Andrés Xavier Rubio Proaño
 - **Institución:** Universidad Tecnológica Indoamérica — Facultad de Ingenierías
 
 ## Cómo compilar
