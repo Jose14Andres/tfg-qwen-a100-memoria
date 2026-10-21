@@ -2,7 +2,7 @@
 
 **Modelado experimental de las fases prefill y decode de Qwen3-8B en NVIDIA A100 mediante vLLM**
 
-José Andrés Ureta Granda · Tutor: Andrès Xavier Rubio Proaño
+José Andrés Ureta Granda · Tutor: Andrés Xavier Rubio Proaño
 Universidad Tecnológica Indoamérica · Facultad de Ingenierías · ITI · B26 Quito
 
 ---
@@ -98,7 +98,7 @@ Datos del trabajo:
 - Título: Modelado experimental de las fases prefill y decode de Qwen3-8B
   en NVIDIA A100 mediante vLLM
 - Autor: José Andrés Ureta Granda
-- Tutor: Andrès Xavier Rubio Proaño
+- Tutor: Andrés Xavier Rubio Proaño
 - Universidad Tecnológica Indoamérica, Facultad de Ingenierías,
   Ingeniería en Tecnologías de la Información
 

@@ -4,7 +4,7 @@
 |---|---|
 | Código institucional | ITI-TFG-B26-0017 |
 | Autor | José Andrés Ureta Granda |
-| Tutor | Andrès Xavier Rubio Proaño |
+| Tutor | Andrés Xavier Rubio Proaño |
 | Institución | Universidad Tecnológica Indoamérica — Facultad de Ingenierías, Ingeniería en Tecnologías de la Información |
 | Modalidad | Trabajo de Integración Curricular |
 | Línea / sublínea propuesta | 4.6 *Optimización del rendimiento* (alternativa: 1.3 *Sistemas de almacenamiento y computación en la nube*) — **por confirmar** |
