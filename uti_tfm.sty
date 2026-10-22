@@ -425,6 +425,21 @@
 
 \newcommand{\UTITituloProfesionalSingular}{\UTITituloProfesionalAutorA}
 
+% En portada, evita repetir el mismo título cuando ambos autores comparten género.
+\newcommand{\UTIFraseTituloPortada}{%
+  \UTIIfTwoAuthorsTF{%
+    \UTIIfFemaleTF{\UTI@generoAutorA}{%
+      \UTIIfFemaleTF{\UTI@generoAutorB}%
+        {la obtención del título de \UTITituloProfesionalAutorA}%
+        {la obtención de los títulos de \UTITituloProfesionalPlural}%
+    }{%
+      \UTIIfFemaleTF{\UTI@generoAutorB}%
+        {la obtención de los títulos de \UTITituloProfesionalPlural}%
+        {la obtención del título de \UTITituloProfesionalAutorA}%
+    }%
+  }{la obtención del título de \UTITituloProfesionalAutorA}%
+}
+
 \newcommand{\UTITituloProfesionalPlural}{%
   \UTITituloProfesionalAutorA\ e \UTITituloProfesionalAutorB%
 }
@@ -621,9 +636,18 @@
 }
 
 % --- Comandos convenientes para numeración preliminar y cuerpo ---
+% Conserva la sangría del cuerpo mientras los preliminares se componen sin ella.
+\newlength{\UTI@sangriaCuerpo}
+\newlength{\UTI@sangriaJustificadaCuerpo}
+\setlength{\UTI@sangriaCuerpo}{\parindent}
+\setlength{\UTI@sangriaJustificadaCuerpo}{\JustifyingParindent}
 % Preliminares: romanos minúscula (i, ii, iii...) desde la primera página posterior a la portada
 \newcommand{\UTIFrontMatter}{%
   \clearpage
+  \setlength{\UTI@sangriaCuerpo}{\parindent}%
+  \setlength{\UTI@sangriaJustificadaCuerpo}{\JustifyingParindent}%
+  \setlength{\parindent}{0pt}%
+  \setlength{\JustifyingParindent}{0pt}%
   \pagenumbering{roman}% roman = minúscula por defecto
   \setcounter{page}{1}%
 }
@@ -700,6 +724,8 @@
 % Cuerpo: cambia a arábigos SIN reiniciar el contador (continúa desde el último romano)
 \newcommand{\UTIMainMatter}{%
   \clearpage
+  \setlength{\parindent}{\UTI@sangriaCuerpo}%
+  \setlength{\JustifyingParindent}{\UTI@sangriaJustificadaCuerpo}%
   \renewcommand{\thepage}{\arabic{page}}%
   % Si hyperref está cargado, alinea los anclajes con el formato arábigo
   \@ifpackageloaded{hyperref}{%
@@ -714,6 +740,8 @@
 % Variante: reinicia a 1 en el cuerpo (por si alguna vez lo necesitas)
 \newcommand{\UTIMainMatterReset}{%
   \clearpage
+  \setlength{\parindent}{\UTI@sangriaCuerpo}%
+  \setlength{\JustifyingParindent}{\UTI@sangriaJustificadaCuerpo}%
   \pagenumbering{arabic}%
   \setcounter{page}{1}%
 }
@@ -774,10 +802,12 @@
   \vspace{3\baselineskip}
   {\fontsize{12}{14.4}\selectfont
     \textbf{TEMA:}\par
-    \vspace{0.12cm}
+    \vspace{0.20cm}
     \hrule height 1pt
     \vspace{0.35cm}
     \textbf{\MakeUppercase{#4}}\par
+    \vspace{0.35cm}
+    \hrule height 1pt
     \vspace{0.35cm}
     #5\par
 
