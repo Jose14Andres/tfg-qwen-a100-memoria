@@ -2,9 +2,107 @@
 \label{chap:metodologia}
 
 \section{Diagnóstico de la Situación Actual}
-\textit{[Analizar el estado inicial del sistema, proceso o infraestructura antes de la implementación del proyecto. Describir cómo funciona actualmente y las principales limitaciones técnicas.]}
+\label{sec:cap2:diagnostico}
+
+El método de este trabajo no se diseñó en abstracto, sino sobre una infraestructura concreta cuyas características imponen condiciones a la medición. Por esa razón, el capítulo parte de un diagnóstico de la plataforma disponible antes de describir el diseño experimental. Las limitaciones identificadas aquí reaparecen en las secciones siguientes como el porqué de buena parte de las decisiones metodológicas.
+
+La plataforma experimental es el clúster de computación de alto rendimiento de CEDIA (\texttt{hpc.cedia.edu.ec}), gestionado con el planificador de trabajos Slurm. % FALTA CITA: documentación de Slurm y del clúster HPC de CEDIA
+Se eligió esta plataforma porque es la que ofrece acceso a la GPU NVIDIA A100 que fija el caso de estudio, y no por preferencia frente a otras infraestructuras. La Tabla~\ref{tab:cap2:plataforma} resume sus características. Los datos de rendimiento de la GPU proceden de la hoja de especificaciones del fabricante~\cite{nvidia2021a100}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Características de la plataforma experimental.}
+  \label{tab:cap2:plataforma}
+  \small
+  \begin{tabular}{|p{0.32\textwidth}|p{0.60\textwidth}|}
+    \hline
+    \textbf{Elemento} & \textbf{Valor} \\
+    \hline
+    Clúster & HPC CEDIA, planificador Slurm \\
+    \hline
+    Nodos de cómputo GPU & \texttt{compute-0-1} y \texttt{compute-0-2}, con 8 NVIDIA A100-SXM4-40GB cada uno \\
+    \hline
+    Nodo interactivo & \texttt{compute-0-0}, con 1 A100-40GB, 6 particiones MIG \texttt{a100\_2g.10gb} y 2 particiones MIG \texttt{a100\_1g.5gb} \\
+    \hline
+    CPU por nodo & 256 núcleos \\
+    \hline
+    RAM por nodo & $\approx$960~GB (nodos GPU); $\approx$1~TB (nodo interactivo) \\
+    \hline
+    Memoria de la GPU & 40\,960~MiB \\
+    \hline
+    Límite de potencia de la GPU & 400~W \\
+    \hline
+    Ancho de banda HBM2 & 1555~GB/s \\
+    \hline
+    Rendimiento BF16 con Tensor Cores & 312~TFLOPS (denso) \\
+    \hline
+    Sistema operativo & Ubuntu 20.04.6, glibc 2.31 \\
+    \hline
+    Almacenamiento de trabajo & NFS compartido (\texttt{\$HOME}) \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Inspección de los nodos del clúster HPC CEDIA; hoja de especificaciones de la A100~\cite{nvidia2021a100}}
+
+La variante de la GPU es la A100-SXM4 de 40~GB, dato que la ficha institucional exige documentar porque la capacidad de memoria condiciona los niveles máximos de longitud de contexto y concurrencia. El sistema operativo de los nodos es Ubuntu 20.04.6, mientras que la ficha sugiere Ubuntu 22.04 o equivalente. La diferencia no es una elección del trabajo, sino una condición del clúster que no puede modificarse. Su consecuencia más importante es la versión de glibc, la 2.31, que origina el problema de compatibilidad tratado en la Sección~\ref{sec:cap2:parche}.
+
+El nodo interactivo ofrece particiones MIG (\textit{Multi-Instance GPU}), que dividen una A100 en instancias aisladas de menor capacidad. Estas particiones quedan excluidas de la campaña de medición por dos razones. La primera es que su memoria resulta insuficiente para alojar Qwen3-8B. La segunda es que NVML no expone la potencia por instancia MIG, lo que impediría atribuir el consumo energético que exige el tercer objetivo específico. % FALTA CITA: documentación de NVML sobre la telemetría de potencia en instancias MIG
+
+La exclusión de MIG obliga, además, a una precaución de identificación. En un trabajo asignado a una partición MIG, \texttt{nvidia-smi} muestra la A100 de 40~GB que la contiene y no la instancia efectiva. Por ello, el dispositivo real se identifica con \texttt{nvidia-smi -L}, \texttt{torch.cuda.\allowbreak get\_device\_name()} o \texttt{torch.cuda.\allowbreak mem\_get\_info()}, y no con la salida general de \texttt{nvidia-smi}.
+
+El planificador impone los límites recogidos en la Tabla~\ref{tab:cap2:slurm}. A ellos se suman dos restricciones de la calidad de servicio (QoS) \texttt{normal} asignada al usuario: solo se admite un trabajo en ejecución simultánea y no es posible reservar un nodo completo. La partición por defecto es \texttt{interactive}, que solo ofrece particiones MIG. En consecuencia, omitir la partición en la solicitud conduce a un recurso inservible para este experimento.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Límites de las particiones de Slurm disponibles para el usuario.}
+  \label{tab:cap2:slurm}
+  \small
+  \begin{tabular}{|p{0.26\textwidth}|p{0.14\textwidth}|p{0.14\textwidth}|p{0.14\textwidth}|p{0.14\textwidth}|}
+    \hline
+    \textbf{Partición} & \textbf{Tiempo máx.} & \textbf{GPU máx.} & \textbf{CPU máx.} & \textbf{RAM máx.} \\
+    \hline
+    \texttt{interactive} (por defecto) & 1 día & --- & --- & --- \\
+    \hline
+    \texttt{gpu} & 2 días & 2 & 160 & 128~G \\
+    \hline
+    \texttt{gpu-max} & 1 día & 4 & 128 & 256~G \\
+    \hline
+    \texttt{gpu-dev} & 4 días & 1 & 16 & --- \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Configuración de Slurm del clúster HPC CEDIA}
+
+Dos limitaciones adicionales afectan directamente a la validez de las mediciones de latencia. La primera es que los nodos son compartidos con otros usuarios y su carga de CPU varía durante la ejecución, como se detalla en la Sección~\ref{sec:cap2:control}. La segunda es que el driver de la GPU cambió durante la semana de preparación, según muestra la Tabla~\ref{tab:cap2:driver}. Este cambio indica que el clúster actualiza los drivers sin aviso previo, de modo que dos mediciones separadas por días pueden no ser comparables.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Versión del driver NVIDIA observada en los nodos durante la preparación.}
+  \label{tab:cap2:driver}
+  \small
+  \begin{tabular}{|p{0.20\textwidth}|p{0.40\textwidth}|p{0.25\textwidth}|}
+    \hline
+    \textbf{Fecha} & \textbf{Nodo} & \textbf{Driver} \\
+    \hline
+    20 de octubre & \texttt{compute-0-1} & 535.161.08 \\
+    \hline
+    22 de octubre & \texttt{compute-0-2} & 575.51.03 \\
+    \hline
+    24 de octubre & \texttt{compute-0-1} y \texttt{compute-0-2} & 575.51.03 \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Registros \texttt{entorno.txt} de los trabajos ejecutados}
+
+El diagnóstico deja establecidas, por tanto, las condiciones de partida: una A100 de 40~GB sin reserva exclusiva del nodo, un sistema operativo con glibc 2.31, un driver que puede cambiar entre ejecuciones y un único trabajo simultáneo. Antes de describir cómo se diseñó el experimento sobre esas condiciones, la Sección~\ref{sec:cap2:area} delimita el área de estudio.
 
 \section{Área de Estudio}
+\label{sec:cap2:area}
+
+La Tabla~\ref{tab:area_estudio} sitúa el trabajo en su dominio académico y precisa el objeto de estudio. Su contenido se deriva de la ficha institucional aprobada.
 
 \begin{table}[htbp]
   \centering
@@ -13,7 +111,7 @@
   \renewcommand{\arraystretch}{1.35}
   \begin{tabular}{|p{0.39\textwidth}|p{0.53\textwidth}|}
     \hline
-    \textbf{Dominio:} & \textit{[Indique el dominio académico o científico del proyecto.]} \\
+    \textbf{Dominio:} & Sistemas de inferencia de modelos de lenguaje de gran tamaño sobre infraestructura de computación de alto rendimiento \\
     \hline
     \textbf{Línea de investigación:} & \UTILineaInvestigacion \\
     \hline
@@ -21,55 +119,385 @@
     \hline
     \textbf{Campo:} & Tecnologías de la información y la comunicación (TIC) \\
     \hline
-    \textbf{Área:} & \textit{[Defina el área técnica específica del proyecto.]} \\
+    \textbf{Área:} & Caracterización y modelado del rendimiento de la inferencia de LLM en GPU \\
     \hline
-    \textbf{Aspectos:} & \textit{[Describa los procesos, tecnologías o problemas que serán analizados.]} \\
+    \textbf{Aspectos:} & Comportamiento de las fases prefill y decode; TTFT, TPOT, throughput, memoria, utilización y energía estimada; efecto de la cuantización, la longitud de contexto y la concurrencia \\
     \hline
-    \textbf{Objeto de estudio:} & \textit{[Indique la organización, sistema, proceso o infraestructura objeto del estudio.]} \\
+    \textbf{Objeto de estudio:} & Modelo Qwen3-8B servido con vLLM sobre una GPU NVIDIA A100-SXM4-40GB del clúster HPC CEDIA \\
     \hline
+    % PENDIENTE: fijar el periodo de estudio cuando se cierre la campaña definitiva.
     \textbf{Periodo de estudio:} & \textit{[Indique las fechas o el intervalo de tiempo que comprende el estudio.]} \\
     \hline
   \end{tabular}
 \end{table}
 
+Con el objeto de estudio delimitado, la Sección~\ref{sec:cap2:metodologia} describe el método con que se caracteriza.
+
 \section{Metodología de Desarrollo o Implementación}
-\textit{[Describir y justificar la metodología empleada según la naturaleza del proyecto, indicando las fases y actividades a ejecutar. Por ejemplo, metodologías ágiles o tradicionales para software, o modelos de diseño, implementación o despliegue para hardware o infraestructura.]}
+\label{sec:cap2:metodologia}
+
+El trabajo sigue un método experimental cuantitativo organizado en las tres fases que establece la ficha institucional: preparación del entorno, benchmark controlado e instrumentación. Se adoptó esa estructura porque la ficha es el documento normativo del trabajo y porque separa con claridad lo que debe congelarse, lo que se varía y lo que se mide. La preparación del entorno se desarrolla en la Sección~\ref{sec:cap2:diseno}. Esta sección describe cómo se organiza la medición y cómo las restricciones del clúster condicionaron su diseño.
+
+Las restricciones de Slurm determinaron tres decisiones de diseño. La primera es la ejecución secuencial de las configuraciones: con un único trabajo simultáneo, no es posible paralelizarlas entre GPU. La segunda es la elección de la partición \texttt{gpu-dev} en lugar de \texttt{gpu}. El 24 de octubre, \texttt{sbatch -{}-test-only} estimaba en \texttt{gpu} un inicio para el 31 de octubre pese a haber GPU libres, mientras que en \texttt{gpu-dev} la estimación era inmediata; \texttt{gpu-dev} ofrece, además, 4 días de tiempo máximo de ejecución frente a 2.
+
+La tercera decisión es la reutilización del motor de inferencia. Arrancar vLLM tiene un costo fijo de decenas de segundos, que superó los 80~s en el peor caso observado, con el entorno virtual alojado en NFS. Reiniciar el motor para cada configuración multiplicaría ese costo por el número de configuraciones dentro de un único trabajo con tiempo limitado. Por ello, la fase en línea levanta el servidor una sola vez y recorre todas las configuraciones contra él.
+
+La medición se automatiza con el script \texttt{bench\_pd.sh}, que organiza cada trabajo en las cinco fases de la Tabla~\ref{tab:cap2:fases}. Se automatizó todo el recorrido en un único script porque cada trabajo de Slurm debe ser autosuficiente: el investigador no interviene entre fases, y cualquier paso manual introduciría variaciones no registradas. Cada fase deja sus salidas en un directorio propio del trabajo, \texttt{resultados/}\textit{jobid}\texttt{/}, de modo que toda medición queda asociada al identificador del trabajo que la produjo.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Fases de ejecución de \texttt{bench\_pd.sh}.}
+  \label{tab:cap2:fases}
+  \small
+  \begin{tabular}{|p{0.07\textwidth}|p{0.45\textwidth}|p{0.38\textwidth}|}
+    \hline
+    \textbf{Fase} & \textbf{Contenido} & \textbf{Salidas} \\
+    \hline
+    0 & Registro del nodo, la GPU, las versiones y la carga; arranque del monitor de telemetría & \texttt{entorno.txt}, \texttt{gpu\_monitor.csv} \\
+    \hline
+    1 & Prueba de humo con el modelo objetivo & \texttt{smoke.txt}, \texttt{smoke.err} \\
+    \hline
+    2 & Barrido sin servidor (\texttt{vllm bench latency}) & \texttt{lat\_in*\_out*\_bs*.json} \\
+    \hline
+    3 & Barrido en línea (\texttt{vllm serve} y \texttt{vllm bench serve}) & \texttt{serve\_in*\_out*\_c*.json}, \texttt{metrics\_servidor.txt} \\
+    \hline
+    4 & Agregación y tablas & \texttt{RESUMEN.md} \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Elaboración propia a partir de \texttt{bench\_pd.sh}}
+
+El orden de las fases responde a un criterio de economía del tiempo de GPU. La fase 0 registra el entorno antes de medir, porque el driver y la carga del nodo pueden cambiar entre trabajos. La fase 1 verifica que el modelo carga y genera texto antes de comprometer el resto del tiempo asignado, de modo que un fallo del entorno se detecta antes de invertir horas de GPU en un barrido inválido. Las fases 2 y 3 aportan dos perspectivas complementarias de la misma medición, que la Sección~\ref{sec:cap2:tecnicas} explica.
+
+El barrido implementado tiene carácter de barrido piloto y no reproduce todavía la matriz de la ficha. La ficha prevé este paso en la mitigación de su riesgo R6: ejecutar un piloto que cronometre cada configuración y renegociar la matriz con el tutor a partir de ese dato. La Tabla~\ref{tab:cap2:divergencias} declara todas las divergencias entre ambas matrices. El piloto explora un espacio más amplio en longitud de entrada y concurrencia para calibrar la matriz definitiva, que se acordará por escrito con el tutor antes de la campaña.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Divergencias entre la matriz de la ficha y el barrido piloto implementado.}
+  \label{tab:cap2:divergencias}
+  \small
+  \begin{tabular}{|p{0.22\textwidth}|p{0.30\textwidth}|p{0.38\textwidth}|}
+    \hline
+    \textbf{Variable} & \textbf{Ficha aprobada} & \textbf{Barrido piloto (\texttt{bench\_pd.sh})} \\
+    \hline
+    Variante numérica & BF16 y AWQ INT4 & Solo BF16 \\
+    \hline
+    Longitud de entrada & 128, 512, 2048 y 8192 & 128, 512, 1024, 2048 y 4096 \\
+    \hline
+    Longitud de salida & 64 y 256 & 1 y 129 (sin servidor); 128 y 256 (en línea) \\
+    \hline
+    Concurrencia & 1, 4, 8 y 16 & 1, 2, 4, 8, 16, 32 y 64 \\
+    \hline
+    Repeticiones & 5 & 10 iteraciones (sin servidor) \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Ficha institucional ITI-TFG-B26-0017 y \texttt{bench\_pd.sh}}
+
+Dos de esas divergencias son huecos que el piloto debe cerrar antes de fijar la matriz. El primero es el escenario de 8192 tokens, que no se mide. Es la configuración límite en memoria, según el cálculo de la Sección~\ref{sec:cap2:techos}, y por tanto la que decide si la matriz de la ficha es ejecutable en una A100 de 40~GB; puede exigir, además, desactivar los grafos CUDA con \texttt{-{}-enforce-eager}. El segundo hueco es la variante AWQ INT4~\cite{lin2024awq}, que constituye la mitad de la comparación exigida por el objetivo general y cuyo riesgo asociado, la disponibilidad y fiabilidad de un checkpoint cuantizado, sigue abierto.
+
+Quedan otras dos decisiones pendientes que la memoria declara en lugar de omitir. La ficha prevé aleatorizar el orden de las configuraciones para reducir el efecto de la temperatura, la caché y el estado previo del sistema, y el material del piloto no documenta esa aleatorización; la campaña definitiva deberá incorporarla. Por otra parte, el riesgo R4 de la ficha advierte que el chunked prefill puede mezclar ambas fases en un mismo lote~\cite{agrawal2024sarathi}, y la decisión de desactivarlo o documentarlo sigue abierta. Con la organización de la medición descrita, la Sección~\ref{sec:cap2:tecnicas} precisa qué se mide y con qué instrumentos.
 
 \section{Técnicas e Instrumentos de Recolección de Información}
-\textit{[Describir las técnicas utilizadas para obtener información durante el diagnóstico y la validación del proyecto, tales como entrevistas, encuestas u observación directa.]}
+\label{sec:cap2:tecnicas}
+
+La técnica central del trabajo es la medición instrumentada de la inferencia. Las métricas por fase son el TTFT (\textit{time to first token}), que caracteriza el prefill, y el TPOT (\textit{time per output token}), que caracteriza el decode. Ninguna de las dos se observa directamente en un único instrumento sin supuestos, y por esa razón se triangulan con tres métodos independientes. Si los tres métodos convergen, la medición es robusta; si divergen, la magnitud de la discrepancia acota el error de cada uno y constituye un hallazgo que merece discusión.
+
+\subsection{Triangulación de la separación prefill/decode}
+\label{sec:cap2:triangulacion}
+
+El primer método obtiene las fases por diferencia de latencias en el modo sin servidor, con \texttt{vllm bench latency}. Con una longitud de salida de un token, el tiempo medido corresponde esencialmente al prefill; con 129 tokens, se añaden 128 pasos de decode. Se eligió la salida de 129 tokens para que la diferencia contenga exactamente 128 pasos de decode. Las Ecuaciones~\ref{eq:cap2:tprefill} a~\ref{eq:cap2:tpot} formalizan el procedimiento, donde $T(n)$ es la latencia medida con $n$ tokens de salida, $L_{in}$ la longitud de entrada y $B$ el tamaño de lote.
+
+\begin{equation}
+\label{eq:cap2:tprefill}
+T_{prefill} \approx T(1)
+\end{equation}
+\addeqtolist{Latencia de prefill por diferencia de latencias}
+
+\begin{equation}
+\label{eq:cap2:xprefill}
+X_{prefill} = \frac{L_{in} \times B}{T(1)}
+\end{equation}
+\addeqtolist{Throughput de prefill sin servidor}
+
+\begin{equation}
+\label{eq:cap2:tpot}
+\mathrm{TPOT} = \frac{T(129) - T(1)}{128}
+\end{equation}
+\addeqtolist{TPOT por diferencia de latencias}
+
+La ventaja de este método es que aísla las fases sin instrumentación interna del motor. Su limitación es que $T(1)$ no es prefill puro: incluye una pequeña fracción de decode y el sobrecoste de arranque de la iteración. Por ello, la Ecuación~\ref{eq:cap2:tprefill} es una aproximación y su error debe contrastarse con los otros dos métodos.
+
+El segundo método recoge las métricas de cliente en el modo en línea, con \texttt{vllm bench serve} contra un servidor \texttt{vllm serve}. La herramienta reporta el TTFT, el TPOT y el ITL (\textit{inter-token latency}, latencia entre tokens consecutivos) con los percentiles 50, 90 y 99. Se ejecuta con la opción \texttt{-{}-ignore-eos} para que cada solicitud genere la longitud de salida pedida aunque el modelo emita antes el token de fin de secuencia; sin ella, solicitudes de la misma configuración tendrían longitudes distintas y su TPOT no sería comparable. Este método ofrece la perspectiva del usuario, y su limitación es que el TTFT incluye el tiempo de espera en cola del servidor, además del prefill.
+
+El tercer método lee las métricas internas del servidor en el endpoint \texttt{/metrics} de vLLM. Los histogramas \texttt{request\_\allowbreak prefill\_\allowbreak time\_\allowbreak seconds} y \texttt{request\_\allowbreak decode\_\allowbreak time\_\allowbreak seconds} separan las fases según la contabilidad interna del motor. Es la medida más directa y por eso sirve de referencia para validar los dos métodos anteriores. Su limitación es que depende de cómo el motor define el inicio y el fin de cada fase, definición que no es observable desde fuera y que puede variar entre versiones de vLLM. % FALTA CITA: documentación de vllm bench y de las métricas Prometheus de vLLM
+
+\subsection{Telemetría, energía y control de la contención}
+\label{sec:cap2:control}
+
+La telemetría de la GPU se registra con un monitor de \texttt{nvidia-smi} que muestrea cada 2~s durante toda la ejecución y escribe \texttt{gpu\_monitor.csv}. Se recurrió a \texttt{nvidia-smi} porque está disponible en los nodos y expone la memoria, la utilización, la temperatura y la potencia que exige el tercer objetivo específico. La ficha prevé DCGM para la campaña principal y Nsight Systems solo en un subconjunto representativo, por el volumen de datos y el sobrecoste del perfilado.
+
+La energía se calculará a partir de esa telemetría con las Ecuaciones~\ref{eq:cap2:energia} y~\ref{eq:cap2:etoken}, definidas en la ficha. En ellas, $P_i$ es la potencia de la muestra $i$, $\Delta t$ el periodo de muestreo, $E_{idle}$ la energía consumida en reposo durante el mismo intervalo y $N_{tokens}$ el número de tokens generados. La energía así obtenida es una estimación basada en la telemetría interna de la GPU y no una medición eléctrica calibrada externamente. La ventana de integración y la medición de $E_{idle}$ en cada campaña quedan por fijar en el protocolo de energía.
+
+\begin{equation}
+\label{eq:cap2:energia}
+E = \sum_{i=1}^{n} P_i \, \Delta t
+\end{equation}
+\addeqtolist{Energía estimada a partir de la telemetría}
+
+\begin{equation}
+\label{eq:cap2:etoken}
+E_{token} = \frac{E_{ejecucion} - E_{idle}}{N_{tokens}}
+\end{equation}
+\addeqtolist{Energía estimada por token generado}
+
+La contención del nodo es una variable de confusión, porque el TTFT y el TPOT dependen de que la CPU alimente a la GPU sin demora. Su magnitud quedó documentada durante la preparación: el 22 de octubre a las 19:34, \texttt{compute-0-2} registraba un load average de 317,33, 337,72 y 214,73 en las ventanas de 1, 5 y 15 minutos, sobre 256 núcleos. Esa carga equivale a una sobresuscripción de 1,24 veces en la ventana de un minuto y de 1,32 veces en la de cinco, frente a 0,84 veces quince minutos antes. La carga se duplicó, por tanto, mientras el trabajo estaba en ejecución, y nada garantiza que no vuelva a ocurrir.
+
+Como el usuario no puede reservar un nodo completo, la contención no puede eliminarse y se controla de tres formas. La primera es registrar \texttt{/proc/loadavg} al inicio de cada trabajo en \texttt{entorno.txt}, para que la carga quede asociada a cada medición. La segunda es el monitor de \texttt{nvidia-smi} descrito, que permite detectar intervalos de baja utilización atribuibles a la CPU. La tercera es ejecutar repeticiones suficientes para estimar la varianza y detectar ejecuciones contaminadas, en lugar de confiar en una medición única.
+
+El cambio de driver de la Tabla~\ref{tab:cap2:driver} se controla con el mismo principio de registro. Cada ejecución guarda la versión del driver vigente en el momento de medir en \texttt{entorno.txt}. La campaña definitiva deberá completarse dentro de una ventana sin actualizaciones del driver o, si eso no es posible, reportar el driver como covariable en el análisis. Definidos los instrumentos y sus controles, la Sección~\ref{sec:cap2:requerimientos} fija los requerimientos que debe cumplir el banco de pruebas que los integra.
 
 \section{Requerimientos del Proyecto}
+\label{sec:cap2:requerimientos}
+
+Los requerimientos del banco de pruebas se derivan de los objetivos específicos y de las condiciones identificadas en el diagnóstico. Se formularon como requerimientos verificables porque el banco es un instrumento de medición, y un instrumento sin especificación no puede validarse. Las Tablas~\ref{tab:cap2:rf} y~\ref{tab:cap2:rnf} los recogen junto con la razón de cada uno.
+
 \subsection{Requerimientos Funcionales}
-\textit{[Enumerar y describir los requerimientos funcionales que la solución debe cumplir.]}
+\label{sec:cap2:rf}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Requerimientos funcionales del banco de pruebas.}
+  \label{tab:cap2:rf}
+  \small
+  \begin{tabular}{|p{0.07\textwidth}|p{0.43\textwidth}|p{0.40\textwidth}|}
+    \hline
+    \textbf{ID} & \textbf{Requerimiento} & \textbf{Razón} \\
+    \hline
+    RF1 & Desplegar vLLM con una configuración parametrizada en YAML y verificar su salud mediante \texttt{/health} & Evita medir contra un servidor que aún no está listo \\
+    \hline
+    RF2 & Generar prompts sintéticos de longitud exacta en tokens con el tokenizador de Qwen3 & La longitud de entrada es una variable experimental y debe controlarse en tokens, no en caracteres \\
+    \hline
+    RF3 & Ejecutar la carga en modo sin servidor (lote fijo) y en modo en línea (llegadas Poisson, cliente asíncrono con streaming) & Sostiene los métodos 1 y 2 de la triangulación \\
+    \hline
+    RF4 & Registrar los tiempos por petición y por token con marcas de tiempo de alta resolución en el cliente & Permite calcular TTFT, TPOT e ITL desde la perspectiva del usuario \\
+    \hline
+    RF5 & Muestrear en paralelo la telemetría de la GPU y las métricas Prometheus de vLLM & Sostiene el método 3, la estimación de energía y el control de la contención \\
+    \hline
+    RF6 & Persistir cada corrida con sus metadatos: versiones, hardware, configuración, semilla y marca de tiempo & Hace comparables mediciones separadas por días o por cambios de driver \\
+    \hline
+    RF7 & Ajustar los modelos y generar automáticamente las tablas y figuras para LaTeX & Elimina la transcripción manual de resultados a la memoria \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Especificación del proyecto (\texttt{SPEC.md}, §11.1)}
+
 \subsection{Requerimientos No Funcionales}
-\textit{[Describir requerimientos relacionados con seguridad, rendimiento, disponibilidad, escalabilidad u otros aplicables.]}
+\label{sec:cap2:rnf}
+
+\begin{table}[htbp]
+  \centering
+  \caption{Requerimientos no funcionales del banco de pruebas.}
+  \label{tab:cap2:rnf}
+  \small
+  \begin{tabular}{|p{0.20\textwidth}|p{0.38\textwidth}|p{0.32\textwidth}|}
+    \hline
+    \textbf{ID} & \textbf{Requerimiento} & \textbf{Razón} \\
+    \hline
+    RNF1 Reproducibilidad & Versiones fijadas, semillas fijas, contenedor o lockfile y scripts idempotentes & El primer objetivo específico exige un entorno reproducible \\
+    \hline
+    RNF2 Aislamiento & GPU dedicada sin otros procesos durante las mediciones, verificada con \texttt{nvidia-smi} & Otro proceso en la GPU contaminaría latencia y energía; la contención de CPU, que no puede aislarse, se controla según la Sección~\ref{sec:cap2:control} \\
+    \hline
+    RNF3 Precisión de medición & Reloj monotónico (\texttt{time.perf\_counter\_ns}), warm-up descartado y repeticiones suficientes & Un reloj ajustable o una primera ejecución en frío sesgarían el TTFT \\
+    \hline
+    RNF4 Trazabilidad & Cada figura o tabla de la memoria referencia el identificador de la corrida de origen & Permite auditar cualquier cifra hasta su dato crudo \\
+    \hline
+    RNF5 Costo & La campaña completa cabe en el presupuesto de horas de GPU & Con un único trabajo simultáneo, el tiempo de GPU es el recurso escaso \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Especificación del proyecto (\texttt{SPEC.md}, §11.2)}
+
+El requerimiento RNF1 es el que más condiciona el diseño, porque obliga a congelar un entorno que el clúster no ofrece listo para usar. La Sección~\ref{sec:cap2:diseno} describe cómo se construyó ese entorno.
 
 \section{Diseño de la Solución}
 \label{sec:diseno_solucion}
-\textit{[Describir el diseño técnico de la solución propuesta. Puede incluir arquitectura del sistema o infraestructura, diagramas lógicos y físicos, modelos de datos, componentes o configuraciones técnicas.]}
+\label{sec:cap2:diseno}
+
+El diseño de la solución comprende dos elementos: el entorno de software congelado sobre el que se ejecutan todas las mediciones y el parche que hace posible ese entorno en los nodos del clúster. Ambos responden al requerimiento RNF1, porque una medición solo es reproducible si lo es el entorno que la produce.
+
+\subsection{Entorno de software congelado}
+\label{sec:cap2:entorno}
+
+La Tabla~\ref{tab:cap2:entorno} recoge los componentes del entorno y sus versiones exactas. Se congelaron la revisión del modelo y el commit de la rueda de vLLM, y no solo sus números de versión, porque un mismo número de versión puede corresponder a binarios o pesos distintos. Las dependencias completas quedan en el archivo \texttt{req-congelado.txt}, que acompaña al repositorio. El entorno se construyó como un entorno Python versionado, una de las tres vías de reconstrucción que admite la ficha junto con Docker y Apptainer.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Entorno de software congelado.}
+  \label{tab:cap2:entorno}
+  \small
+  \begin{tabular}{|p{0.30\textwidth}|p{0.62\textwidth}|}
+    \hline
+    \textbf{Componente} & \textbf{Versión} \\
+    \hline
+    Python & 3.11 (módulo \texttt{python/3.11}, miniconda) \\
+    \hline
+    PyTorch & 2.11.0+cu129 \\
+    \hline
+    CUDA runtime & 12.9 \\
+    \hline
+    vLLM & 0.20.0+cu129 \\
+    \hline
+    Procedencia de la rueda & \texttt{wheels.vllm.ai}, commit \texttt{88d34c6409\allowbreak e9fb3c7b8c\allowbreak a0c04756f0\allowbreak 61d2099eb1} \\
+    \hline
+    Backend de atención & FlashAttention 2 \\
+    \hline
+    Modelo & \texttt{Qwen/Qwen3-8B}, revisión \texttt{b968826d9c\allowbreak 46dd6066d1\allowbreak 09eabc6255\allowbreak 188de91218} \\
+    \hline
+    Caché de modelos & \texttt{HF\_HOME=\textasciitilde/tfg-jose-ureta/hf-cache} \\
+    \hline
+    Dependencias completas & \texttt{req-congelado.txt} \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Entorno instalado en el clúster HPC CEDIA}
+
+La razón de cada versión, en particular la de vLLM 0.20.0 y la del backend FlashAttention 2, se expone en la Sección~\ref{sec:cap2:justificacion}. Antes es necesario resolver un problema que impedía cargar esa versión de vLLM en los nodos.
+
+\subsection{Parche de compatibilidad glibc}
+\label{sec:cap2:parche}
+
+La rueda \texttt{vllm-0.20.0+cu129} se distribuye con la etiqueta \texttt{manylinux\_2\_31}, que declara compatibilidad con glibc 2.31. Sin embargo, dos de sus extensiones nativas, \texttt{\_C.abi3.so} y \texttt{\_moe\_C.abi3.so}, enlazan cuatro símbolos con la versión \texttt{GLIBC\_2.34}: \texttt{dlopen}, \texttt{dlclose}, \texttt{dlsym} y \texttt{pthread\_once}. En los nodos, con glibc 2.31, el resultado es un \texttt{ImportError} al cargar vLLM. La etiqueta de la rueda es, por tanto, incorrecta. % FALTA CITA: especificación de las etiquetas manylinux (PEP 600)
+
+El diagnóstico consistió en inspeccionar con \texttt{objdump -T} todas las bibliotecas compartidas del entorno virtual. Solo cuatro declaran dependencias de glibc 2.32 o superior, y la Tabla~\ref{tab:cap2:bibliotecas} indica cuáles se cargan efectivamente en el clúster. Las dos que no se cargan quedan fuera del problema: una implementa FlashAttention 3, que solo existe para Hopper, y la otra está compilada para Python 3.12. El parche debe actuar, en consecuencia, solo sobre las dos extensiones del núcleo de vLLM.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Bibliotecas del entorno con dependencias de glibc 2.32 o superior.}
+  \label{tab:cap2:bibliotecas}
+  \small
+  \begin{tabular}{|p{0.52\textwidth}|p{0.38\textwidth}|}
+    \hline
+    \textbf{Biblioteca} & \textbf{¿Se carga en el clúster?} \\
+    \hline
+    \texttt{vllm/\_C.abi3.so} & Sí: núcleo de vLLM \\
+    \hline
+    \texttt{vllm/\_moe\_C.abi3.so} & Sí \\
+    \hline
+    \texttt{vllm/vllm\_flash\_attn/\allowbreak\_vllm\_fa3\_C.abi3.so} & No: FlashAttention 3 es exclusiva de Hopper \\
+    \hline
+    \texttt{vllm/third\_party/deep\_gemm/\allowbreak\_C.cpython-312-*.so} & No: compilada para Python 3.12 \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Inspección con \texttt{objdump -T} del entorno virtual}
+
+Los cuatro símbolos no corresponden a funcionalidad ausente en glibc 2.31. En glibc 2.34 las bibliotecas \texttt{libdl} y \texttt{libpthread} se consolidaron dentro de \texttt{libc}; en glibc 2.31 esos mismos símbolos existen, pero residen en \texttt{libdl.so.2} y \texttt{libpthread.so.0}. % FALTA CITA: notas de la versión 2.34 de glibc sobre la integración de libdl y libpthread en libc
+La incompatibilidad es, por tanto, un artefacto de haber compilado la rueda en un sistema más moderno, y basta con indicar al cargador dinámico dónde encontrar los símbolos.
+
+La solución se implementó en el script \texttt{parche\_glibc.sh}, que aplica tres operaciones. Primero, elimina la versión de los cuatro símbolos con \texttt{patchelf -{}-clear-symbol-version} y añade \texttt{libdl.so.2} y \texttt{libpthread.so.0} como dependencias explícitas con \texttt{-{}-add-needed}. % FALTA CITA: documentación de patchelf
+Segundo, marca como \texttt{VER\_FLG\_WEAK} la entrada \texttt{GLIBC\_2.34} de la sección \texttt{.gnu.\allowbreak version\_r} mediante \texttt{parche\_\allowbreak glibc\_\allowbreak weak.py}, porque el paso anterior no basta: el cargador sigue rechazando la biblioteca mientras esa entrada exista sin la bandera. Tercero, verifica que \texttt{import vllm.\_C} e \texttt{import vllm.\_moe\_C} funcionen.
+
+El script es idempotente y conserva los binarios originales como \texttt{*.so.orig}, de modo que aplicarlo varias veces no altera el resultado y el cambio es reversible. Debe reaplicarse tras cada reinstalación del entorno virtual, y por eso \texttt{bench\_pd.sh} lo invoca automáticamente si detecta que vLLM no se importa. Así, ningún trabajo de medición depende de que el parche se haya aplicado a mano.
+
+El parche no altera el comportamiento numérico de vLLM. Solo reubica dónde busca el cargador dinámico cuatro símbolos de carga de bibliotecas y sincronización; no modifica kernels, precisión numérica ni planificación de solicitudes. Aun así, constituye una modificación del binario distribuido, y el entorno resultante no es bit a bit idéntico al que se obtendría con \texttt{pip install vllm==0.20.0} en un sistema con glibc 2.34 o superior. Por esa razón, los scripts del parche acompañan al repositorio, para que cualquier persona pueda reproducir exactamente el mismo entorno. Las alternativas que se evaluaron antes de optar por el parche se discuten en la Sección~\ref{sec:cap2:justificacion}.
 
 \section{Justificación Técnica}
-\textit{[Argumentar técnicamente la selección de tecnologías, herramientas, plataformas, equipos o servicios utilizados en el proyecto.]}
+\label{sec:cap2:justificacion}
 
-La justificación técnica parte de las tecnologías que fija el caso de estudio: el motor de inferencia vLLM, que gestiona el KV cache mediante PagedAttention y planifica la ejecución a nivel de iteración~\cite{kwon2023pagedattention}; el modelo Qwen3-8B~\cite{qwen2025qwen3}; y la GPU NVIDIA A100~\cite{nvidia2021a100}.
+La justificación técnica parte de las tecnologías que fija el caso de estudio: el motor de inferencia vLLM, que gestiona el KV cache mediante PagedAttention y planifica la ejecución a nivel de iteración~\cite{kwon2023pagedattention}; el modelo Qwen3-8B~\cite{qwen2025qwen3}; y la GPU NVIDIA A100~\cite{nvidia2021a100}. Esas tecnologías vienen dadas por la ficha. Esta sección justifica, en cambio, las decisiones que el trabajo sí tomó dentro de ellas: las versiones, el backend de atención, la vía de compatibilidad y la factibilidad de la matriz en memoria.
 
-\subsection{Ejemplo de Imagen 1}
-Ejemplo de referencia en el cuerpo del texto: la Imagen~\ref{img:ejemplo_1} puede usarse para documentar evidencia técnica del entorno, componentes o interfaz.
+\subsection{Versiones y backend de atención}
+\label{sec:cap2:versiones}
 
-\begin{imagen}[htbp]
+La versión 0.20.0 de vLLM no se eligió por preferencia, sino por una restricción del entorno. Las versiones posteriores distribuyen su stack compilado contra CUDA 13, que requiere un driver 580 o superior, y el clúster operaba con el driver 535 en el momento de la instalación. La compatibilidad entre versiones menores de CUDA permite ejecutar runtimes 12.x sobre drivers 525 o superiores, pero no cruza de la versión mayor 12 a la 13. La versión 0.20.0 con CUDA runtime 12.9 es, por tanto, la más reciente ejecutable con aquel driver. % FALTA CITA: documentación de NVIDIA sobre la compatibilidad de versiones menores de CUDA
+
+La actualización posterior del driver a 575.51.03, recogida en la Tabla~\ref{tab:cap2:driver}, no invalida esta decisión. Ese driver sigue por debajo de 580, de modo que CUDA 13 tampoco sería ejecutable con él. Mantener la versión congelada preserva, además, la comparabilidad con las ejecuciones ya realizadas.
+
+vLLM selecciona FlashAttention 2 como backend de atención porque FlashAttention 3 solo está implementada para la arquitectura Hopper, y la A100 pertenece a la arquitectura Ampere. FlashAttention reduce los accesos a la memoria de alto ancho de banda de la GPU durante el cálculo de la atención~\cite{dao2022flashattention}. % FALTA CITA: FlashAttention-2 y FlashAttention-3 (restricción a Hopper)
+Se trata de una limitación de la plataforma y no de una decisión del experimento. Se declara porque afecta al rendimiento absoluto de la fase de prefill, que es la más intensiva en la atención.
+
+Para resolver la incompatibilidad con glibc se evaluaron tres alternativas antes de optar por el parche, recogidas en la Tabla~\ref{tab:cap2:alternativas}. El contenedor oficial queda como plan B porque resuelve el problema sin modificar binarios, pero su tamaño lo hace costoso en el almacenamiento compartido. La compilación desde el código fuente se descartó por su costo en tiempo, y la regresión a una versión anterior, porque no resolvía el problema.
+
+\begin{table}[htbp]
   \centering
-  \includegraphics[width=0.80\textwidth]{Capítulos/img/img_ejemplo_1.png}
-  \caption{Ejemplo de imagen para documentación visual de infraestructura o evidencias.}
-  \label{img:ejemplo_1}
-\end{imagen}
-\elaboradopor{Estudiante}
-\fuente{Captura referencial del proyecto}
+  \caption{Alternativas evaluadas para resolver la incompatibilidad con glibc 2.31.}
+  \label{tab:cap2:alternativas}
+  \small
+  \begin{tabular}{|p{0.40\textwidth}|p{0.50\textwidth}|}
+    \hline
+    \textbf{Alternativa} & \textbf{Motivo del descarte} \\
+    \hline
+    Contenedor oficial \texttt{vllm/vllm-openai} con enroot/pyxis o Apptainer & Imagen superior a 10~GB sobre NFS compartido; queda como plan B \\
+    \hline
+    Compilar vLLM desde el código fuente en el nodo & Varias horas de compilación por cada reinstalación \\
+    \hline
+    Fijar una versión anterior de vLLM & No resuelve el problema: la etiqueta incorrecta aparece en varias versiones \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Elaboración propia}
 
-\subsection{Ejemplo de Ecuación 1}
-Otro ejemplo de referencia: la Ecuación~\ref{eq:disponibilidad} muestra un cálculo típico para validación de disponibilidad del servicio.
+Fijadas las versiones, queda por justificar que la plataforma puede alojar la matriz experimental y qué rendimiento cabe esperar de ella como máximo. La Sección~\ref{sec:cap2:techos} lo establece mediante cálculos analíticos.
+
+\subsection{Techos teóricos y presupuesto de memoria}
+\label{sec:cap2:techos}
+
+Los techos teóricos sirven de referencia contra la cual se contrastarán las mediciones. Se calculan con el modelo roofline, que acota el rendimiento de un cálculo por el menor de dos límites: el cómputo máximo del procesador y el ancho de banda de la memoria~\cite{williams2009roofline}. Sin esta referencia, una cifra de throughput es un número suelto; con ella, indica qué fracción del límite físico alcanza cada fase.
+
+El punto de partida es el tamaño de los pesos. Qwen3-8B tiene aproximadamente $N = 8{,}2 \cdot 10^{9}$ parámetros~\cite{qwen2025qwen3}, y en BF16 cada parámetro ocupa 2 bytes. La Ecuación~\ref{eq:cap2:pesos} obtiene el volumen de los pesos, que equivale a 15,3~GiB.
 
 \begin{equation}
-\label{eq:disponibilidad}
-Disponibilidad\,(\%) = \frac{T_{operativo}}{T_{total}} \times 100
+\label{eq:cap2:pesos}
+M_{pesos} = N \times 2~\mathrm{B} = 8{,}2 \cdot 10^{9} \times 2~\mathrm{B} \approx 16{,}4~\mathrm{GB}
 \end{equation}
-\addeqtolist{Cálculo de disponibilidad del servicio}
+\addeqtolist{Volumen de los pesos de Qwen3-8B en BF16}
+
+En el decode con lote 1, cada token generado exige leer todos los pesos desde la memoria HBM2 de la GPU, y el cómputo por byte leído es bajo. La fase queda entonces limitada por el ancho de banda de memoria, y su techo se obtiene con la Ecuación~\ref{eq:cap2:techo-decode}. El cálculo ignora la lectura del KV cache, que con lote 1 es pequeña frente a los pesos, de modo que el techo real es algo inferior.
+
+\begin{equation}
+\label{eq:cap2:techo-decode}
+X_{decode}^{max} \approx \frac{BW_{HBM}}{M_{pesos}} = \frac{1555~\mathrm{GB/s}}{16{,}4~\mathrm{GB}} \approx 95~\mathrm{tok/s}
+\end{equation}
+\addeqtolist{Techo teórico del decode con lote 1}
+
+En el prefill, en cambio, todos los tokens del prompt se procesan en paralelo y los pesos leídos se reutilizan para cada uno de ellos. La fase queda limitada por el cómputo, a razón de aproximadamente dos operaciones de coma flotante por parámetro y token, una multiplicación y una suma. La Ecuación~\ref{eq:cap2:techo-prefill} da su techo con el rendimiento BF16 denso de la A100.
+
+\begin{equation}
+\label{eq:cap2:techo-prefill}
+X_{prefill}^{max} \approx \frac{P_{BF16}}{2N} = \frac{312 \cdot 10^{12}~\mathrm{FLOP/s}}{2 \times 8{,}2 \cdot 10^{9}~\mathrm{FLOP/tok}} \approx 19\,000~\mathrm{tok/s}
+\end{equation}
+\addeqtolist{Techo teórico del prefill}
+
+Los dos techos difieren en dos órdenes de magnitud, y esa diferencia es la expresión cuantitativa del argumento central del trabajo: prefill y decode son fases con cuellos de botella distintos. Contrastar las mediciones contra estos techos es lo que permitirá identificar el cuello de botella dominante de cada fase, como exige el cuarto objetivo específico.
+
+El presupuesto de memoria determina si la configuración más exigente de la matriz cabe en la GPU. Los parámetros de arquitectura se tomaron del archivo \texttt{config.json} de la revisión del modelo efectivamente descargada, y no de la documentación, porque es esa revisión la que se ejecuta. El modelo tiene 36 capas y 8 cabezas KV de dimensión 128, gracias a la atención de consultas agrupadas (GQA)~\cite{ainslie2023gqa}. La Ecuación~\ref{eq:cap2:kv-token} calcula el KV cache por token, donde el factor 2 inicial corresponde a las claves y los valores, y los 2 bytes finales, a la representación BF16.
+
+\begin{equation}
+\label{eq:cap2:kv-token}
+m_{KV} = 2 \times n_{capas} \times n_{KV} \times d_{h} \times b = 2 \times 36 \times 8 \times 128 \times 2~\mathrm{B} = 147\,456~\mathrm{B} = 144{,}0~\mathrm{KiB}
+\end{equation}
+\addeqtolist{KV cache por token de Qwen3-8B}
+
+La configuración más exigente de la ficha combina 8192 tokens con 16 secuencias concurrentes. La Ecuación~\ref{eq:cap2:kv-total} multiplica el KV cache por token por ese volumen, y la Ecuación~\ref{eq:cap2:mem-total} le suma los pesos. El total, 33,3~GiB, queda dentro de los aproximadamente 36~GiB utilizables de la A100 de 40~GB, pero con un margen estrecho.
+
+\begin{equation}
+\label{eq:cap2:kv-total}
+M_{KV} = 8192 \times 16 \times 147\,456~\mathrm{B} \approx 18{,}0~\mathrm{GiB}
+\end{equation}
+\addeqtolist{KV cache de la configuración más exigente}
+
+\begin{equation}
+\label{eq:cap2:mem-total}
+M_{total} = M_{pesos} + M_{KV} \approx 15{,}3~\mathrm{GiB} + 18{,}0~\mathrm{GiB} = 33{,}3~\mathrm{GiB}
+\end{equation}
+\addeqtolist{Presupuesto de memoria de la configuración más exigente}
+
+El cálculo indica que la matriz de la ficha es factible en principio, pero no lo garantiza: el margen restante debe alojar también las activaciones y los grafos CUDA. Por esa razón, el escenario de 8192 tokens con concurrencia 16 en BF16 se identificó en la Sección~\ref{sec:cap2:metodologia} como el hueco prioritario del piloto. Con el método, los instrumentos, el entorno y las cotas analíticas establecidos, el Capítulo~\ref{chap:implementacion} describe la implementación del banco de pruebas y la ejecución de la campaña.
