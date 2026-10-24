@@ -8,7 +8,7 @@
 | Tutor | Andrés Xavier Rubio Proaño |
 | Institución | Universidad Tecnológica Indoamérica — Facultad de Ingenierías, Ingeniería en Tecnologías de la Información |
 | Modalidad | Trabajo de Integración Curricular |
-| Fecha de corte de este documento | 2026-10-13 |
+| Fecha de corte de este documento | 2026-10-24 |
 | Repositorio remoto | `https://github.com/Jose14Andres/tfg-qwen-a100-memoria.git` |
 
 Este documento registra todo lo trabajado hasta la fecha de corte: qué existe, en qué estado está y qué falta. La especificación completa del proyecto está en [`SPEC.md`](SPEC.md).
@@ -40,10 +40,12 @@ El trabajo mide ambas fases de **Qwen3-8B** servido con **vLLM** en una **NVIDIA
 | Componente | Ubicación | Estado |
 |---|---|---|
 | Especificación del proyecto | `SPEC.md` | Borrador v0.1 (2026-10-08), completo, con 7 decisiones abiertas |
-| Plantilla y formato UTI | `uti_tfm.sty`, `main.tex` | Funcional; `main.tex` adaptado a la tesis |
-| Páginas preliminares | `Preliminares/` | Estructura lista; fechas, lectores, resumen y abstract sin redactar |
-| Capítulos I–IV | `Capítulos/` | Solo estructura de secciones con el texto guía de la plantilla |
-| Referencias | `referencias.bib` | Solo las 6 entradas de ejemplo de la plantilla |
+| Plantilla y formato UTI | `uti_tfm.sty`, `main.tex` | Funcional; adaptado al nuevo formato institucional UTI (2026-10-22) |
+| Páginas preliminares | `Preliminares/` | Estructura lista; lectores, resumen y abstract sin redactar |
+| Capítulo I · Introducción | `Capítulos/01_Introducción.tex` | **Redactado** como ensayo argumentativo (~4 000 palabras); 1 `% FALTA CITA` pendiente (línea 21) |
+| Capítulo II · Metodología | `Capítulos/02_Metodología.tex` | Solo la *Justificación técnica* redactada; el resto es texto guía de la plantilla |
+| Capítulos III–IV | `Capítulos/03_*.tex`, `04_*.tex` | Texto guía y ejemplos de la plantilla |
+| Referencias | `referencias_1.bib` (en uso) | 11 entradas verificadas; las 10 claves citadas resuelven. `referencias.bib` conserva las 6 entradas de ejemplo |
 | Glosario y anexos | `Capítulos/06_Glosario.tex`, `Anexos/01_Anexo.tex` | Texto guía de la plantilla |
 | Modelo de datos | `docs/modelo_datos/` | Documento completo (652 líneas, PDF generado) |
 | Banco de pruebas | `experimentos/` | Base implementada (configuración, esquemas, prompts, entorno); 27 pruebas pasan |
@@ -59,7 +61,8 @@ El trabajo mide ambas fases de **Qwen3-8B** servido con **vLLM** en una **NVIDIA
 ```
 main.tex                    Documento principal
 uti_tfm.sty                 Formato institucional UTI
-referencias.bib             Bibliografía (IEEE, BibTeX)
+referencias_1.bib           Bibliografía en uso (IEEE, BibTeX)
+referencias.bib             Entradas de ejemplo de la plantilla (no se usa)
 Logos/                      LOGO-UTI-1..6.png
 Preliminares/               01 Repositorio digital · 02 Aprobación tutor ·
                             03 Declaración de autenticidad · 04 Aprobación lectores ·
@@ -77,8 +80,15 @@ Anexos/                     01 Anexo
 - **Título en inglés:** `Experimental Modeling of the Prefill and Decode Phases of Qwen3-8B on NVIDIA A100 Using vLLM` (traducción del título; por validar con el tutor).
 - **Línea de investigación:** seleccionada `{4}{6}` — *Optimización del rendimiento* (línea 4). Alternativa: `{1}{3}` — *Sistemas de almacenamiento y computación en la nube*. Falta la confirmación del tutor.
 - **Lectores:** siguen con el marcador `Nombres Apellidos`.
+- **Tutor:** nombre corregido a Andrés Xavier Rubio Proaño.
+- **Nuevo formato UTI (2026-10-22):** frase de título en portada según género (`\UTIFraseTituloPortada`), líneas horizontales alrededor del tema, preliminares sin sangría, modalidad «Trabajo de Integración Curricular previo a…», y fecha alineada a la derecha y «CERTIFICO» sin negrita en la aprobación del tutor y la declaración de autenticidad.
+- **Citas:** estilo IEEE numérico (`IEEEtran`), confirmado por el tutor. `Capítulos/05_Referencias.tex` apunta a `referencias_1.bib`, aunque `CLAUDE.md` indica `referencias.bib`; hay que unificar.
 
-### 3.3 Contenido previsto por capítulo (SPEC §15)
+### 3.3 Avance del Capítulo I
+
+Reescrito el 2026-10-21 como ensayo argumentativo. Secciones: Antecedentes (contexto y estado del arte), Planteamiento y formulación del problema, Objetivos, Justificación, Alcance y delimitaciones, y Fundamentación teórica. Cita vLLM/PagedAttention, Orca, Sarathi-Serve, DistServe, FlashAttention, AWQ, Transformer, roofline, Qwen3 y la A100. Falta una fuente sobre la adopción de LLM en asistentes conversacionales y aplicaciones similares.
+
+### 3.4 Contenido previsto por capítulo (SPEC §15)
 
 | Capítulo | Contenido | Fuente en el SPEC |
 |---|---|---|
@@ -87,14 +97,14 @@ Anexos/                     01 Anexo
 | III · Implementación, pruebas y resultados | Banco de pruebas, campaña E1–E5, ajuste y validación de modelos, cronograma y presupuesto | §8–10, §13 |
 | IV · Conclusiones | Conclusiones por objetivo, recomendaciones, trabajos futuros (cuantización, multi-GPU, desagregación prefill/decode, otros motores y modelos) | §15 |
 
-### 3.4 Compilación
+### 3.5 Compilación
 
 | Método | Comando | Resultado en este equipo |
 |---|---|---|
 | pdfLaTeX | `latexmk -pdf main.tex` | Compila sin errores; usa TeX Gyre Adventor como fuente sustituta |
 | XeLaTeX | `latexmk -xelatex main.tex` | Falla: la fuente Century Gothic no está instalada |
 
-El último `main.pdf` se generó con pdfLaTeX el 2026-10-13. Si la universidad exige Century Gothic real, hay que instalar la fuente y compilar con XeLaTeX.
+El último `main.pdf` se generó con pdfLaTeX (MiKTeX) el 2026-10-22, sin citas sin definir, y se versiona en git. Si la universidad exige Century Gothic real, hay que instalar la fuente y compilar con XeLaTeX.
 
 ---
 
@@ -147,7 +157,7 @@ El documento incluye además: diagrama entidad–relación, diccionario de datos
 | `e4_interferencia.yaml` | E4 — Interferencia prefill/decode |
 | `e5_capacidad.yaml` | E5 — Capacidad y saturación |
 
-**Pruebas:** 27 pruebas en `experimentos/tests/` (configuración, generación de prompts, esquemas e identificadores); todas pasan (verificado el 2026-10-13).
+**Pruebas:** 27 pruebas en `experimentos/tests/` (configuración, generación de prompts, esquemas e identificadores); todas pasan (verificado el 2026-10-24).
 
 ### 5.2 Uso
 
@@ -176,13 +186,13 @@ python -m pytest                                       # pruebas
 
 | Rama | Commit | Contenido |
 |---|---|---|
-| `main` | `b202217` | Estructura inicial de la memoria del TFG |
-| `docs/main-tex-datos-tesis` | `44d82c3` | `main.tex` adaptado a la tesis (comentarios, título en inglés, línea 4.6) |
+| `main` | `b0a2471` | Incluye el PR #1 (`main.tex`, Capítulo I inicial, citas IEEE) y el PR #2 (Capítulo I como ensayo argumentativo) |
+| `docs/nuevo-formato-uti` | `c9a0506` | Nuevo formato institucional UTI y corrección de las citas del Capítulo II; subida al remoto, **pendiente de fusionar** en `main` |
+| `docs/main-tex-datos-tesis` | `7e478af` | Ya fusionada en `main`; puede borrarse |
 
-- La rama `docs/main-tex-datos-tesis` no se ha fusionado en `main` ni se ha subido al remoto.
-- Sin seguimiento en git: `SPEC.md`, `docs/`, `experimentos/` y este archivo.
-- `experimentos/.venv/` contiene miles de archivos del entorno virtual; hay que añadir `.venv/`, `__pycache__/` y `*.egg-info/` al `.gitignore` antes de versionar esa carpeta.
-- Ignorados por `.gitignore`: auxiliares de LaTeX, `tmp_*`, `main.pdf`, `uploads/` y `prism-uploads/`.
+- Todas las ramas están sincronizadas con `origin`.
+- Ya se versionan `SPEC.md`, `docs/modelo_datos/`, `experimentos/` (sin `.venv/`), `CLAUDE.md`, este archivo y `main.pdf`.
+- Ignorados por `.gitignore`: auxiliares de LaTeX, `tmp_*`, `uploads/`, `prism-uploads/`, entorno y cachés de Python, e `informacion-tesis*.txt` (contiene correos de terceros).
 
 ---
 
@@ -201,9 +211,11 @@ python -m pytest                                       # pruebas
 ## 8. Próximos pasos
 
 1. Cerrar con el tutor las decisiones abiertas, en especial el acceso a la A100 y la línea de investigación.
-2. Reemplazar las referencias de ejemplo en `referencias.bib` por las del estado del arte: vLLM/PagedAttention, Orca, Sarathi-Serve, DistServe, Splitwise, LLM-Viewer y Qwen3 (verificar las referencias exactas).
-3. Redactar el Capítulo I a partir de SPEC §1–4 y §6.
-4. Completar el banco de pruebas (RF1, RF3–RF7) y ejecutar la corrida piloto.
-5. Ejecutar la campaña E1–E5, ajustar y validar los modelos, y redactar los Capítulos II–IV.
-6. Completar las páginas preliminares: lectores, fechas, resumen y abstract.
-7. Actualizar el `README.md`, que solo documenta la compilación con `latexmk -pdf`.
+2. Fusionar `docs/nuevo-formato-uti` en `main`.
+3. Unificar la bibliografía: dejar un único `.bib` y alinear `CLAUDE.md` con `Capítulos/05_Referencias.tex`.
+4. Resolver el `% FALTA CITA` del Capítulo I y valorar si se añaden Splitwise y LLM-Viewer al estado del arte.
+5. Redactar el Capítulo II (diagnóstico, área de estudio, diseño factorial E1–E5, técnicas e instrumentos, RF/RNF y diseño del banco) y quitar los ejemplos de la plantilla.
+6. Completar el banco de pruebas (RF1, RF3–RF7) y ejecutar la corrida piloto.
+7. Ejecutar la campaña E1–E5, ajustar y validar los modelos, y redactar los Capítulos III–IV.
+8. Completar las páginas preliminares (lectores, resumen y abstract), el glosario y los anexos.
+9. Actualizar el `README.md`, que solo documenta la compilación con `latexmk -pdf`.
