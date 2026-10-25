@@ -86,7 +86,7 @@ Anexos/                     01 Anexo
 
 ### 3.3 Avance del Capítulo I
 
-Reescrito el 2026-10-21 como ensayo argumentativo y reestructurado el 2026-10-24 según la plantilla UTI: Contextualización, Estado del Arte, Planteamiento del Problema (incluye la formulación de la pregunta), Justificación, Objetivos (General y Específicos), Alcance del Proyecto (Elementos incluidos y excluidos) y Fundamentación Teórica. La Fundamentación Teórica sigue sin redactar. `guia-capitulo-1_1.md` describe todavía la estructura anterior. Cita vLLM/PagedAttention, Orca, Sarathi-Serve, DistServe, FlashAttention, AWQ, Transformer, roofline, Qwen3 y la A100. Falta una fuente sobre la adopción de LLM en asistentes conversacionales y aplicaciones similares.
+Reescrito el 2026-10-21 como ensayo argumentativo y reestructurado el 2026-10-24 según la plantilla UTI: Contextualización, Estado del Arte, Planteamiento del Problema (incluye la formulación de la pregunta), Justificación, Objetivos (General y Específicos), Alcance del Proyecto (Elementos incluidos y excluidos) y Fundamentación Teórica. La Fundamentación Teórica sigue sin redactar. Cita vLLM/PagedAttention, Orca, Sarathi-Serve, DistServe, FlashAttention, AWQ, Transformer, roofline, Qwen3 y la A100. Falta una fuente sobre la adopción de LLM en asistentes conversacionales y aplicaciones similares.
 
 ### 3.4 Contenido previsto por capítulo (SPEC §15)
 
@@ -213,7 +213,7 @@ python -m pytest                                       # pruebas
 1. Cerrar con el tutor las decisiones abiertas, en especial el acceso a la A100 y la línea de investigación.
 2. Subir `docs/nuevo-formato-uti` y fusionar en `main` la reestructuración del Capítulo I.
 3. Unificar la bibliografía: dejar un único `.bib` y alinear `CLAUDE.md` con `Capítulos/05_Referencias.tex`.
-4. Resolver el `% FALTA CITA` del Capítulo I, redactar su Fundamentación Teórica y valorar si se añaden Splitwise y LLM-Viewer al estado del arte. Actualizar `guia-capitulo-1_1.md` a la estructura de la plantilla.
+4. Resolver el `% FALTA CITA` del Capítulo I, redactar su Fundamentación Teórica y valorar si se añaden Splitwise y LLM-Viewer al estado del arte.
 5. Resolver las 8 marcas `% FALTA CITA` del Capítulo II.
 6. Completar el banco de pruebas (RF1, RF3–RF7) y ejecutar la corrida piloto.
 7. Ejecutar la campaña E1–E5, ajustar y validar los modelos, y redactar los Capítulos III–IV.
