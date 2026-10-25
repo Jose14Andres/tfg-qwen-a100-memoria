@@ -180,9 +180,148 @@ Las exclusiones siguientes acotan el trabajo a un caso controlado e impiden que 
 
 Las conclusiones del trabajo serán válidas únicamente para la combinación de Qwen3-8B, NVIDIA A100 y vLLM. No se formularán afirmaciones de superioridad general sobre otras plataformas o modelos. Delimitado así el dominio de la respuesta, la Sección~\ref{sec:cap1:fundamentacion} expone los fundamentos teóricos que los capítulos siguientes requieren.
 
-% PENDIENTE (opción (a) aprobada por el autor): esta sección se redacta en
-% una sesión posterior. Aquí irá el marco teórico (Transformer, GQA
-% [ainslie2023gqa], KV cache, PagedAttention, AWQ, roofline, etc.).
 \section{Fundamentación Teórica}
 \label{sec:cap1:fundamentacion}
-\textit{[Desarrollar los fundamentos teóricos, conceptos, modelos y tecnologías que sustentan el proyecto. Debe estar relacionado directamente con la solución propuesta y su implementación, aplicable a software, hardware o infraestructura.]}
+
+Las secciones anteriores emplean conceptos que solo se han mencionado: las fases prefill y decode, el KV cache, la cuantización y los límites de cómputo y de memoria de la GPU. Esta sección los desarrolla en el orden en que intervienen durante la inferencia. Primero se describe la arquitectura del modelo y las dos fases de su ejecución; después, la estructura de memoria que las conecta y los mecanismos con que vLLM la gestiona; por último, la cuantización, el modelo roofline y las métricas con que se caracteriza cada fase. Los valores numéricos para Qwen3-8B y la A100 se calculan en el Capítulo~\ref{chap:metodologia}; aquí se establecen las relaciones de las que esos valores se derivan.
+
+\subsection{Arquitectura Transformer y atención de consultas agrupadas}
+\label{sec:cap1:transformer}
+
+Qwen3-8B es un modelo Transformer de solo decodificador~\cite{qwen2025qwen3}. La arquitectura Transformer apila capas idénticas, cada una formada por un bloque de autoatención y una red de alimentación directa~\cite{vaswani2017attention}. En un modelo de solo decodificador, cada token solo puede atender a los tokens que lo preceden, de modo que el texto se genera de forma autorregresiva: cada token nuevo se calcula a partir de todos los anteriores.
+
+El bloque de autoatención proyecta la representación de cada token en tres vectores: una consulta ($Q$), una clave ($K$) y un valor ($V$). La salida de la atención se obtiene con la Ecuación~\ref{eq:cap1:atencion}, donde $d_k$ es la dimensión de las claves~\cite{vaswani2017attention}. El producto $QK^{\top}$ compara la consulta de cada token con las claves de todos los tokens previos, y el resultado pondera los valores correspondientes. La atención multicabeza repite este cálculo en paralelo con varias proyecciones independientes, denominadas cabezas.
+
+\begin{equation}
+\label{eq:cap1:atencion}
+\mbox{Atención}(Q, K, V) = \mathrm{softmax}\!\left(\frac{QK^{\top}}{\sqrt{d_k}}\right) V
+\end{equation}
+\addeqtolist{Atención de producto escalar escalado}
+
+La Ecuación~\ref{eq:cap1:atencion} tiene una consecuencia directa para la inferencia: para generar un token, el modelo necesita las claves y los valores de todos los tokens anteriores. Recalcularlos en cada paso sería redundante, porque no cambian; por ello se conservan en memoria, en la estructura que la Sección~\ref{sec:cap1:kvcache} describe.
+
+La atención de consultas agrupadas (GQA, por sus siglas en inglés) reduce el volumen de esa estructura. En lugar de asignar claves y valores propios a cada cabeza de consulta, GQA reparte las cabezas de consulta en grupos que comparten un mismo par de cabezas de clave y valor~\cite{ainslie2023gqa}. Qwen3-8B emplea GQA con 32 cabezas de consulta y 8 cabezas de clave y valor~\cite{qwen2025qwen3}, de modo que almacena cuatro veces menos claves y valores que un modelo equivalente con atención multicabeza convencional. Esta reducción es la que hace manejable el KV cache de Qwen3-8B en una única GPU con contextos largos.
+
+\subsection{Fases prefill y decode}
+\label{sec:cap1:fases}
+
+La inferencia de una solicitud se divide en dos fases con un patrón de cálculo distinto~\cite{zhong2024distserve}. En la fase prefill, el modelo procesa los $L_{in}$ tokens del prompt en una sola pasada. Como todos ellos se conocen de antemano, se calculan en paralelo: cada capa opera sobre una matriz de $L_{in}$ filas, y los pesos leídos desde la memoria se reutilizan para todos los tokens. La fase termina con el primer token de salida y con las claves y los valores del prompt ya almacenados.
+
+En la fase decode, el modelo genera los $L_{out} - 1$ tokens restantes, uno por paso. Cada paso procesa un único token por solicitud, porque el siguiente depende de él. El paso exige, sin embargo, leer todos los pesos del modelo y las claves y los valores acumulados, aunque el cálculo realizado con ellos sea pequeño. Cuando el motor agrupa $B$ solicitudes en decode, un mismo paso reutiliza los pesos para las $B$ solicitudes, pero cada una aporta un solo token.
+
+La diferencia entre ambas fases se expresa mediante la intensidad aritmética, definida en la Sección~\ref{sec:cap1:roofline} como el número de operaciones realizadas por byte leído de memoria. En las capas lineales, un modelo de $N$ parámetros realiza aproximadamente $2N$ operaciones de coma flotante por token, una multiplicación y una suma por parámetro. En BF16 lee $2N$ bytes de pesos por pasada. La intensidad aritmética del prefill crece, por tanto, de forma aproximadamente proporcional a $L_{in}$, mientras que la del decode crece con el número de solicitudes $B$ del lote. Por esa razón, el prefill tiende a quedar limitado por el cómputo y el decode por el ancho de banda de memoria~\cite{zhong2024distserve}. La Tabla~\ref{tab:cap1:fases} resume las diferencias.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Características de las fases prefill y decode.}
+  \label{tab:cap1:fases}
+  \small
+  \begin{tabular}{|p{0.26\textwidth}|p{0.31\textwidth}|p{0.31\textwidth}|}
+    \hline
+    \textbf{Característica} & \textbf{Prefill} & \textbf{Decode} \\
+    \hline
+    Tokens procesados por solicitud & Los $L_{in}$ del prompt, en una pasada & Uno por paso, durante $L_{out} - 1$ pasos \\
+    \hline
+    Intensidad aritmética & Crece con $L_{in}$ & Crece con el tamaño del lote $B$ \\
+    \hline
+    Recurso limitante típico & Cómputo & Ancho de banda de memoria \\
+    \hline
+    Efecto sobre el KV cache & Lo crea para el prompt & Lo amplía en un token por paso \\
+    \hline
+    Métrica asociada & TTFT & TPOT \\
+    \hline
+  \end{tabular}
+  \elaboradopor{José Andrés Ureta Granda}
+  \fuente{Elaboración propia a partir de~\cite{zhong2024distserve,agrawal2024sarathi}}
+\end{table}
+
+El costo de la atención añade un término que depende de la longitud de contexto. En el prefill, cada token del prompt atiende a los anteriores, de modo que el cálculo de la atención crece con el cuadrado de $L_{in}$; con prompts largos, este término gana peso frente al de las capas lineales. FlashAttention reduce los accesos a memoria de este cálculo procesándolo por bloques, sin alterar su resultado~\cite{dao2022flashattention}. En el decode, cada paso lee las claves y los valores de todo el contexto acumulado, por lo que el volumen leído por paso crece con la longitud de la secuencia y con el número de solicitudes del lote.
+
+\subsection{KV cache}
+\label{sec:cap1:kvcache}
+
+El KV cache es la estructura en la que el motor de inferencia conserva, en la memoria de la GPU, las claves y los valores de cada token ya procesado. Lo crea la fase prefill y lo amplía cada paso de la fase decode. Su tamaño por token se obtiene con la Ecuación~\ref{eq:cap1:kv-token}, donde $n_{capas}$ es el número de capas, $n_{KV}$ el número de cabezas de clave y valor, $d_h$ la dimensión de cada cabeza y $b$ el número de bytes por elemento. El factor 2 corresponde a las claves y los valores.
+
+\begin{equation}
+\label{eq:cap1:kv-token}
+m_{KV} = 2 \times n_{capas} \times n_{KV} \times d_h \times b
+\end{equation}
+\addeqtolist{Tamaño del KV cache por token}
+
+La memoria total que ocupa el KV cache crece de forma lineal con el número de tokens almacenados, como recoge la Ecuación~\ref{eq:cap1:kv-total}. Para $B$ solicitudes con longitudes de secuencia $L_1, \dots, L_B$, la suma depende a la vez de la longitud de contexto y de la concurrencia, las dos variables que este trabajo hace variar.
+
+\begin{equation}
+\label{eq:cap1:kv-total}
+M_{KV} = m_{KV} \sum_{i=1}^{B} L_i
+\end{equation}
+\addeqtolist{Memoria total del KV cache}
+
+La memoria de la GPU se reparte entre los pesos del modelo, las activaciones y el KV cache. Una vez cargados los pesos, la memoria restante fija cuántos tokens pueden almacenarse y, con ello, cuántas solicitudes pueden atenderse de forma simultánea. El valor de $m_{KV}$ para Qwen3-8B y el presupuesto de memoria de la configuración más exigente se calculan en la Ecuación~\ref{eq:cap2:kv-token} y siguientes del Capítulo~\ref{chap:metodologia}.
+
+\subsection{Gestión de memoria y planificación en vLLM}
+\label{sec:cap1:vllm}
+
+vLLM gestiona el KV cache mediante PagedAttention~\cite{kwon2023pagedattention}. Este mecanismo divide el KV cache de cada solicitud en bloques de un número fijo de tokens, que no necesitan ocupar posiciones contiguas en la memoria. Una tabla de bloques asocia las posiciones lógicas de cada secuencia con los bloques físicos que las almacenan, de forma análoga a la tabla de páginas de la memoria virtual de un sistema operativo. Los bloques se asignan a medida que la secuencia crece, de modo que el desperdicio queda limitado al último bloque, que puede estar parcialmente ocupado. La misma indirección permite que varias solicitudes compartan los bloques de un prefijo común~\cite{kwon2023pagedattention}.
+
+Cuando el KV cache se llena, vLLM recurre a la expulsión (preemption) de solicitudes: libera los bloques de una o más de ellas y, cuando vuelve a haber memoria, las reanuda trasladando sus bloques a la memoria de la CPU o recalculándolos~\cite{kwon2023pagedattention}. La expulsión mantiene el servicio en funcionamiento, pero alarga la latencia de las solicitudes afectadas. Por ello, el número de expulsiones es un indicador de que la configuración opera en el límite de la memoria.
+
+La planificación de solicitudes sigue el esquema de batching continuo introducido por Orca~\cite{yu2022orca}. El planificador decide el contenido del lote en cada iteración del modelo y no una vez por solicitud: incorpora solicitudes nuevas en cuanto hay capacidad y retira las finalizadas sin esperar al resto del lote. En consecuencia, un mismo lote puede contener solicitudes en prefill y solicitudes en decode.
+
+Esa convivencia genera interferencia entre fases. Un prefill largo ocupa la GPU durante una iteración costosa y retrasa el paso siguiente de todas las solicitudes en decode, lo que eleva su TPOT~\cite{agrawal2024sarathi}. El chunked prefill atenúa este efecto: divide el prefill en fragmentos y limita el número de tokens procesados en cada iteración, de modo que el decode avanza sin detenerse mientras se completa el prefill~\cite{agrawal2024sarathi}. La contrapartida es un TTFT mayor para la solicitud cuyo prefill se fragmenta.
+
+El comportamiento de estos mecanismos se controla mediante parámetros de configuración del motor. Los principales son la fracción de la memoria de la GPU que vLLM puede reservar (\texttt{gpu\_memory\_utilization}), el número máximo de solicitudes simultáneas en un lote (\texttt{max\_num\_seqs}) y el número máximo de tokens por iteración (\texttt{max\_num\_batched\_tokens}), que acota el tamaño de los fragmentos del chunked prefill. vLLM captura, además, la secuencia de kernels del decode en grafos CUDA, que reducen el costo de lanzar cada kernel por separado a cambio de memoria adicional.
+% FALTA CITA: documentación de vLLM 0.20.0 (parámetros gpu_memory_utilization, max_num_seqs, max_num_batched_tokens y captura de grafos CUDA); según la guía, como nota al pie o anexo de entorno con versión y fecha de consulta
+La configuración base de estos parámetros se fija en el Capítulo~\ref{chap:metodologia}.
+
+\subsection{Representación numérica y cuantización}
+\label{sec:cap1:cuantizacion}
+
+La representación numérica determina cuántos bytes ocupa cada peso y, con ello, el volumen que se lee de memoria en cada pasada. BF16 es un formato de coma flotante de 16 bits que conserva el rango de exponentes de la coma flotante de 32 bits y reduce la precisión de la mantisa. La A100 ejecuta operaciones BF16 en sus Tensor Cores~\cite{nvidia2021a100}. En BF16, cada peso ocupa 2 bytes.
+% FALTA CITA: definición del formato BF16 (8 bits de exponente y 7 de mantisa)
+
+La cuantización representa los pesos con menos bits. AWQ es un método de cuantización de solo pesos: los pesos se almacenan en enteros de 4 bits (INT4), mientras que las activaciones y el cálculo se mantienen en coma flotante de 16 bits~\cite{lin2024awq}. El método parte de la observación de que una pequeña fracción de los pesos es determinante para la calidad del modelo, y que esa fracción puede identificarse a partir de la magnitud de las activaciones y no de los propios pesos. Para protegerla, AWQ escala los canales correspondientes antes de cuantizar, de modo que su error de cuantización relativo disminuye~\cite{lin2024awq}.
+
+El efecto esperable de la cuantización difiere entre fases. En el decode, limitado por el ancho de banda de memoria, leer 4 bits por peso en lugar de 16 reduce el volumen leído por paso, que es el recurso limitante~\cite{lin2024awq}. En el prefill, limitado por el cómputo, esa reducción no alivia el recurso limitante, y los pesos deben convertirse a coma flotante antes de operar con ellos. La memoria que libera la cuantización queda, además, disponible para el KV cache y, con ello, para atender más solicitudes. La reducción de bits puede degradar la calidad de las respuestas, por lo que el alcance incluye la comparación limitada de calidad descrita en la Sección~\ref{sec:cap1:alcance-incluye}. Que estos efectos se produzcan, y en qué magnitud, para Qwen3-8B en la A100 es una de las preguntas que el trabajo responde experimentalmente.
+
+\subsection{Modelo roofline, MFU y MBU}
+\label{sec:cap1:roofline}
+
+El modelo roofline acota el rendimiento alcanzable por un cálculo a partir de dos límites del procesador: su rendimiento máximo de cómputo y el ancho de banda de su memoria~\cite{williams2009roofline}. El modelo caracteriza cada cálculo por su intensidad aritmética $I$, el cociente entre las operaciones de coma flotante que realiza y los bytes que transfiere desde la memoria. El rendimiento alcanzable $P$ es el menor de los dos límites, como expresa la Ecuación~\ref{eq:cap1:roofline}, donde $P_{pico}$ es el rendimiento máximo de cómputo y $BW$ el ancho de banda de memoria.
+
+\begin{equation}
+\label{eq:cap1:roofline}
+P = \min\left(P_{pico},\; I \times BW\right)
+\end{equation}
+\addeqtolist{Modelo roofline}
+
+Los dos límites se cruzan en el punto de equilibrio $I^{*} = P_{pico} / BW$. Un cálculo con $I < I^{*}$ queda limitado por la memoria, y uno con $I > I^{*}$, por el cómputo. Para la A100 de 40~GB, con 312~TFLOP/s en BF16 denso y 1555~GB/s de ancho de banda~\cite{nvidia2021a100}, el punto de equilibrio se sitúa en torno a 200 operaciones por byte.
+
+Este marco traduce a cifras la diferencia descrita en la Sección~\ref{sec:cap1:fases}. Como la intensidad del prefill crece con $L_{in}$, un prompt de varios cientos de tokens supera el punto de equilibrio y queda limitado por el cómputo. Como la intensidad del decode crece con $B$, un lote de pocas solicitudes queda muy por debajo del punto de equilibrio y el paso queda limitado por la lectura de los pesos y del KV cache. El modelo proporciona así una cota superior del rendimiento de cada fase, cuyo cálculo para Qwen3-8B se realiza en la Sección~\ref{sec:cap2:techos}.
+
+Dos métricas expresan qué fracción de esa cota se alcanza. La utilización de FLOPs del modelo (MFU, por sus siglas en inglés) es el cociente entre las operaciones por segundo que el modelo realiza efectivamente y $P_{pico}$; resulta adecuada para el prefill, limitado por el cómputo. La utilización del ancho de banda del modelo (MBU) es el cociente entre los bytes por segundo que el modelo lee efectivamente, pesos y KV cache incluidos, y $BW$; resulta adecuada para el decode, limitado por la memoria. Un valor bajo de la métrica correspondiente indica que la fase no aprovecha el recurso que la limita, y orienta la búsqueda del cuello de botella hacia otras causas, como la planificación o la interferencia entre fases.
+% FALTA CITA: definición de MFU (Model FLOPs Utilization) y de MBU (Model Bandwidth Utilization)
+
+\subsection{Métricas de desempeño de la inferencia}
+\label{sec:cap1:metricas}
+
+La caracterización por fases exige métricas que separen la contribución de cada una a la latencia percibida. El TTFT es el tiempo que transcurre desde el envío de la solicitud hasta la recepción del primer token; refleja la fase prefill y, en un servidor con carga, también el tiempo de espera en cola. El TPOT es el tiempo medio entre tokens de salida consecutivos de una solicitud y refleja la fase decode~\cite{zhong2024distserve}. La latencia extremo a extremo (E2E) es el tiempo total desde el envío hasta el último token. Las tres se relacionan mediante la Ecuación~\ref{eq:cap1:tpot}, que define el TPOT a partir de las otras dos.
+
+\begin{equation}
+\label{eq:cap1:tpot}
+\mathrm{TPOT} = \frac{\mathrm{E2E} - \mathrm{TTFT}}{L_{out} - 1}
+\end{equation}
+\addeqtolist{Tiempo por token de salida}
+
+El TPOT es un promedio por solicitud. La latencia entre tokens (ITL, por sus siglas en inglés) registra, en cambio, cada intervalo individual entre dos tokens consecutivos. Su distribución revela pausas que el promedio oculta, como las que produce un prefill largo al interferir con el decode~\cite{agrawal2024sarathi}.
+
+El throughput mide la capacidad del sistema y se expresa en tokens de salida por segundo o en solicitudes atendidas por segundo. El goodput restringe ese recuento a las solicitudes que cumplen unos objetivos de nivel de servicio (SLO) sobre el TTFT y el TPOT~\cite{zhong2024distserve}. A diferencia del throughput, el goodput penaliza una configuración que procesa muchos tokens a costa de una latencia inaceptable para el usuario.
+
+La energía se estima a partir de la potencia que informa la telemetría interna de la GPU, mediante NVML y DCGM. La energía consumida durante un intervalo es la integral de la potencia en ese intervalo, y la energía por token se obtiene con la Ecuación~\ref{eq:cap1:energia}, donde $p(t)$ es la potencia instantánea entre los instantes $t_0$ y $t_1$, y $N_{tok}$ el número de tokens generados en ese intervalo.
+
+\begin{equation}
+\label{eq:cap1:energia}
+E_{tok} = \frac{1}{N_{tok}} \int_{t_0}^{t_1} p(t)\, dt
+\end{equation}
+\addeqtolist{Energía estimada por token}
+
+Como precisa la Sección~\ref{sec:cap1:alcance-incluye}, esta energía es una estimación basada en la telemetría y no una medición eléctrica calibrada. Con estas métricas, los mecanismos descritos en esta sección y las cotas del modelo roofline, el Capítulo~\ref{chap:metodologia} establece el método con que se miden las dos fases.

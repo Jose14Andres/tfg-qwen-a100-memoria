@@ -74,7 +74,7 @@ CAPÍTULO I — INTRODUCCIÓN
 
 **1.6 Alcance del Proyecto.** La tabla de variables experimentales (elementos incluidos) y la lista de exclusiones de la ficha (elementos excluidos). Esta sección te protege en la defensa: todo lo que declares fuera de alcance no te lo pueden reclamar después.
 
-**1.7 Fundamentación Teórica.** Los fundamentos que sustentan el trabajo: Transformer, GQA, KV cache, PagedAttention, batching continuo, chunked prefill, AWQ, modelo roofline, MFU y MBU. *Pendiente de redactar.*
+**1.7 Fundamentación Teórica.** Los fundamentos que sustentan el trabajo: Transformer, GQA, KV cache, PagedAttention, batching continuo, chunked prefill, AWQ, modelo roofline, MFU y MBU, y las métricas TTFT, TPOT, ITL, throughput, goodput y energía por token. Los valores numéricos para Qwen3-8B y la A100 se calculan en el Capítulo 2; aquí solo las relaciones de las que se derivan.
 
 ---
 

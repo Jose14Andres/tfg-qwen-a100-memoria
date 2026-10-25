@@ -42,7 +42,7 @@ El trabajo mide ambas fases de **Qwen3-8B** servido con **vLLM** en una **NVIDIA
 | Especificación del proyecto | `SPEC.md` | Borrador v0.1 (2026-10-08), completo, con 7 decisiones abiertas |
 | Plantilla y formato UTI | `uti_tfm.sty`, `main.tex` | Funcional; adaptado al nuevo formato institucional UTI (2026-10-22) y verificado contra la carpeta `Ingenieria_Tecnologias_Informacion_Nuevo_Formato/` (2026-10-24) |
 | Páginas preliminares | `Preliminares/` | Estructura lista; lectores, resumen y abstract sin redactar |
-| Capítulo I · Introducción | `Capítulos/01_Introducción.tex` | **Redactado** como ensayo argumentativo (~4 000 palabras), con las secciones de la plantilla UTI; falta la Fundamentación teórica y 1 `% FALTA CITA` (línea 16) |
+| Capítulo I · Introducción | `Capítulos/01_Introducción.tex` | **Redactado completo** (~6 700 palabras), con las secciones de la plantilla UTI; 4 `% FALTA CITA` pendientes (adopción de LLM, documentación de vLLM, formato BF16, MFU/MBU) |
 | Capítulo II · Metodología | `Capítulos/02_Metodología.tex` | **Redactado** (2026-10-24) en las siete secciones de la plantilla; 8 `% FALTA CITA` pendientes |
 | Capítulos III–IV | `Capítulos/03_*.tex`, `04_*.tex` | Texto guía y ejemplos de la plantilla; la línea 74 del Capítulo III cita `img:ejemplo_1` y `eq:disponibilidad`, eliminados del Capítulo II (referencias sin definir) |
 | Referencias | `referencias_1.bib` (en uso) | 11 entradas verificadas; las 10 claves citadas resuelven. `referencias.bib` conserva las 6 entradas de ejemplo |
@@ -86,7 +86,7 @@ Anexos/                     01 Anexo
 
 ### 3.3 Avance del Capítulo I
 
-Reescrito el 2026-10-21 como ensayo argumentativo y reestructurado el 2026-10-24 según la plantilla UTI: Contextualización, Estado del Arte, Planteamiento del Problema (incluye la formulación de la pregunta), Justificación, Objetivos (General y Específicos), Alcance del Proyecto (Elementos incluidos y excluidos) y Fundamentación Teórica. La Fundamentación Teórica sigue sin redactar. Cita vLLM/PagedAttention, Orca, Sarathi-Serve, DistServe, FlashAttention, AWQ, Transformer, roofline, Qwen3 y la A100. Falta una fuente sobre la adopción de LLM en asistentes conversacionales y aplicaciones similares.
+Reescrito el 2026-10-21 como ensayo argumentativo y reestructurado el 2026-10-24 según la plantilla UTI: Contextualización, Estado del Arte, Planteamiento del Problema (incluye la formulación de la pregunta), Justificación, Objetivos (General y Específicos), Alcance del Proyecto (Elementos incluidos y excluidos) y Fundamentación Teórica. La Fundamentación Teórica (redactada el 2026-10-24, ~2 700 palabras) desarrolla en siete subsecciones el Transformer y GQA, las fases prefill y decode, el KV cache, PagedAttention, batching continuo y chunked prefill, BF16 y AWQ, el modelo roofline con MFU y MBU, y las métricas TTFT, TPOT, ITL, E2E, throughput, goodput y energía por token; los valores numéricos se remiten al Capítulo II. Cita vLLM/PagedAttention, Orca, Sarathi-Serve, DistServe, FlashAttention, AWQ, Transformer, GQA, roofline, Qwen3 y la A100. Faltan fuentes para la adopción de LLM en asistentes conversacionales, los parámetros de configuración de vLLM, el formato BF16 y las definiciones de MFU y MBU.
 
 ### 3.4 Contenido previsto por capítulo (SPEC §15)
 
@@ -213,7 +213,7 @@ python -m pytest                                       # pruebas
 1. Cerrar con el tutor las decisiones abiertas, en especial el acceso a la A100 y la línea de investigación.
 2. Subir `docs/nuevo-formato-uti` y fusionar en `main` la reestructuración del Capítulo I.
 3. Unificar la bibliografía: dejar un único `.bib` y alinear `CLAUDE.md` con `Capítulos/05_Referencias.tex`.
-4. Resolver el `% FALTA CITA` del Capítulo I, redactar su Fundamentación Teórica y valorar si se añaden Splitwise y LLM-Viewer al estado del arte.
+4. Resolver los 4 `% FALTA CITA` del Capítulo I y valorar si se añaden Splitwise y LLM-Viewer al estado del arte.
 5. Resolver las 8 marcas `% FALTA CITA` del Capítulo II.
 6. Completar el banco de pruebas (RF1, RF3–RF7) y ejecutar la corrida piloto.
 7. Ejecutar la campaña E1–E5, ajustar y validar los modelos, y redactar los Capítulos III–IV.
