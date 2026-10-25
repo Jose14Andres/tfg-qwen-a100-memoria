@@ -43,9 +43,9 @@ El trabajo mide ambas fases de **Qwen3-8B** servido con **vLLM** en una **NVIDIA
 | Plantilla y formato UTI | `uti_tfm.sty`, `main.tex` | Funcional; adaptado al nuevo formato institucional UTI (2026-10-22) y verificado contra la carpeta `Ingenieria_Tecnologias_Informacion_Nuevo_Formato/` (2026-10-24) |
 | Páginas preliminares | `Preliminares/` | Estructura lista; lectores, resumen y abstract sin redactar |
 | Capítulo I · Introducción | `Capítulos/01_Introducción.tex` | **Redactado completo** (~6 700 palabras), con las secciones de la plantilla UTI; sin `% FALTA CITA` pendientes (resueltos el 2026-10-24) |
-| Capítulo II · Metodología | `Capítulos/02_Metodología.tex` | **Redactado** (2026-10-24) en las siete secciones de la plantilla; 8 `% FALTA CITA` pendientes |
+| Capítulo II · Metodología | `Capítulos/02_Metodología.tex` | **Redactado** (2026-10-24) en las siete secciones de la plantilla; sin `% FALTA CITA` (resueltos el 2026-10-24); 1 `% REVISAR` sobre la compatibilidad hacia adelante de CUDA |
 | Capítulos III–IV | `Capítulos/03_*.tex`, `04_*.tex` | Texto guía y ejemplos de la plantilla; la línea 74 del Capítulo III cita `img:ejemplo_1` y `eq:disponibilidad`, eliminados del Capítulo II (referencias sin definir) |
-| Referencias | `referencias_1.bib` (en uso) | 15 entradas verificadas (4 añadidas el 2026-10-24: survey de LLM, BF16, PaLM/MFU y Databricks/MBU); las 15 se citan y resuelven. `referencias.bib` conserva las 6 entradas de ejemplo |
+| Referencias | `referencias_1.bib` (en uso) | 19 entradas verificadas (8 añadidas el 2026-10-24: survey de LLM, BF16, PaLM/MFU, Databricks/MBU, Slurm, PEP 600, FlashAttention-2 y FlashAttention-3); las 19 se citan y resuelven. La documentación de software (vLLM, NVML, CUDA, glibc, patchelf) va en notas al pie. `referencias.bib` conserva las 6 entradas de ejemplo |
 | Glosario y anexos | `Capítulos/06_Glosario.tex`, `Anexos/01_Anexo.tex` | Texto guía de la plantilla |
 | Modelo de datos | `docs/modelo_datos/` | Documento completo (652 líneas, PDF generado) |
 | Banco de pruebas | `experimentos/` | Base implementada (configuración, esquemas, prompts, entorno); 27 pruebas pasan |
@@ -214,7 +214,7 @@ python -m pytest                                       # pruebas
 2. Subir `docs/nuevo-formato-uti` y fusionar en `main` la reestructuración del Capítulo I.
 3. Unificar la bibliografía: dejar un único `.bib` y alinear `CLAUDE.md` con `Capítulos/05_Referencias.tex`.
 4. Valorar si se añaden Splitwise y LLM-Viewer al estado del arte.
-5. Resolver las 8 marcas `% FALTA CITA` del Capítulo II.
+5. Resolver el `% REVISAR` del Capítulo II: justificar por qué no se usó la compatibilidad hacia adelante de CUDA (`cuda-compat`), que NVIDIA declara compatible con la rama 535, o valorar si permite una versión más reciente de vLLM.
 6. Completar el banco de pruebas (RF1, RF3–RF7) y ejecutar la corrida piloto.
 7. Ejecutar la campaña E1–E5, ajustar y validar los modelos, y redactar los Capítulos III–IV.
 8. Completar las páginas preliminares (lectores, resumen y abstract), el glosario y los anexos.
