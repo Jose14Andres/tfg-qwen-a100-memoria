@@ -5,16 +5,11 @@ La puesta en servicio de un modelo de lenguaje de gran tamaño (LLM, por sus sig
 
 El caso de Qwen3-8B~\cite{qwen2025qwen3} sobre una GPU NVIDIA A100~\cite{nvidia2021a100}, servido mediante el motor de inferencia vLLM~\cite{kwon2023pagedattention}, vuelve concreta esta limitación. La ficha institucional del trabajo constata que el modelo puede ejecutarse sin dificultad en una A100 y que, aun así, ninguna configuración resulta óptima para todas las cargas de trabajo. Si la configuración adecuada depende de la carga, elegirla exige conocer cómo responde cada fase a los factores que la definen.
 
-De esta tensión surge la pregunta central del capítulo, que la Sección~\ref{sec:cap1:formulacion} formula de forma explícita: cómo influyen la cuantización, la longitud de contexto y la concurrencia en el comportamiento de las fases prefill y decode de Qwen3-8B, ejecutado mediante vLLM sobre una GPU NVIDIA A100, en términos de rendimiento, memoria, energía y calidad. En esta pregunta, la concurrencia designa el número de solicitudes simultáneas. La longitud de contexto comprende la longitud de entrada, o número de tokens del texto de entrada, y la longitud de salida, o número de tokens generados por solicitud.
+De esta tensión surge la pregunta central del capítulo, que la Sección~\ref{sec:cap1:planteamiento} formula de forma explícita: cómo influyen la cuantización, la longitud de contexto y la concurrencia en el comportamiento de las fases prefill y decode de Qwen3-8B, ejecutado mediante vLLM sobre una GPU NVIDIA A100, en términos de rendimiento, memoria, energía y calidad. En esta pregunta, la concurrencia designa el número de solicitudes simultáneas. La longitud de contexto comprende la longitud de entrada, o número de tokens del texto de entrada, y la longitud de salida, o número de tokens generados por solicitud.
 
-El recorrido del capítulo sigue el orden en que se construye esa pregunta y su respuesta. La Sección~\ref{sec:cap1:antecedentes} reúne el contexto del trabajo y el estado del arte para localizar el vacío que la literatura deja abierto; la Sección~\ref{sec:cap1:planteamiento} expone las consecuencias de ese vacío para el despliegue. La Sección~\ref{sec:cap1:formulacion} convierte esas consecuencias en la pregunta principal, y la Sección~\ref{sec:cap1:objetivos} la descompone en una cadena de objetivos en la que cada uno habilita al siguiente. La Sección~\ref{sec:cap1:justificacion} justifica por qué la pregunta merece respuesta y la Sección~\ref{sec:cap1:alcance} fija el dominio en que esa respuesta será válida. La Sección~\ref{sec:cap1:fundamentacion} cierra el capítulo con los fundamentos teóricos que el resto de la memoria requiere.
+El recorrido del capítulo sigue el orden en que se construye esa pregunta y su respuesta. La Sección~\ref{sec:cap1:contexto} sitúa el trabajo en su contexto técnico e institucional, y la Sección~\ref{sec:cap1:estado-arte} revisa la literatura para localizar el vacío que deja abierto. La Sección~\ref{sec:cap1:planteamiento} expone las consecuencias de ese vacío para el despliegue y las convierte en la pregunta principal. La Sección~\ref{sec:cap1:justificacion} justifica por qué la pregunta merece respuesta, la Sección~\ref{sec:cap1:objetivos} la descompone en una cadena de objetivos en la que cada uno habilita al siguiente y la Sección~\ref{sec:cap1:alcance} fija el dominio en que esa respuesta será válida. La Sección~\ref{sec:cap1:fundamentacion} cierra el capítulo con los fundamentos teóricos que el resto de la memoria requiere.
 
-\section{Antecedentes}
-\label{sec:cap1:antecedentes}
-
-Formular la pregunta central requiere situar antes el trabajo en dos planos: el contexto técnico e institucional del que surge y los aportes previos sobre los que se apoya. La Sección~\ref{sec:cap1:contexto} describe el primero y la Sección~\ref{sec:cap1:estado-arte} revisa los segundos.
-
-\subsection{Contexto}
+\section{Contextualización}
 \label{sec:cap1:contexto}
 
 Los LLM se han incorporado a asistentes conversacionales, sistemas de consulta documental y flujos de procesamiento automático de texto.
@@ -29,7 +24,7 @@ El presente trabajo de fin de grado (TFG) se enmarca en el proyecto LLM-CoDesign
 
 El caso seleccionado combina el modelo Qwen3-8B, perteneciente a la familia Qwen3~\cite{qwen2025qwen3}, con una GPU NVIDIA A100 y el motor de inferencia vLLM~\cite{kwon2023pagedattention}. La A100 se comercializa en variantes de 40~GB y 80~GB de memoria~\cite{nvidia2021a100}. Fijado el caso, queda por establecer qué sabe ya la literatura sobre la inferencia de LLM en una GPU y qué deja sin resolver para esta combinación.
 
-\subsection{Estado del arte}
+\section{Estado del Arte}
 \label{sec:cap1:estado-arte}
 
 La distinción entre prefill y decode, presentada en la sección anterior, atraviesa la literatura sobre inferencia de LLM. Esa literatura se concentra en mecanismos de sistema orientados a aprovechar mejor la GPU: la planificación de solicitudes, la gestión de memoria, los kernels de atención, el tratamiento diferenciado de las fases y la cuantización. Esta sección revisa seis trabajos representativos de esas líneas y señala, en cada caso, qué aportan a la pregunta central y qué dejan abierto.
@@ -76,7 +71,7 @@ La Tabla~\ref{tab:cap1:estado-arte} resume el aporte, la limitación principal y
 
 La literatura revisada explica, por tanto, por qué prefill y decode se comportan de forma distinta, pero no ofrece una caracterización experimental de ambas fases para el caso seleccionado. La Sección~\ref{sec:cap1:planteamiento} examina las consecuencias de ese vacío para quien debe configurar el servicio.
 
-\section{Planteamiento del problema}
+\section{Planteamiento del Problema}
 \label{sec:cap1:planteamiento}
 
 El vacío identificado en el estado del arte tiene un efecto práctico. La ficha institucional del trabajo constata que la selección de una configuración de inferencia suele basarse en métricas agregadas, como los tokens por segundo, sin distinguir el comportamiento de las fases prefill y decode. Una métrica agregada resume en una sola cifra dos procesos con exigencias distintas sobre la GPU~\cite{zhong2024distserve}. El resultado es una visión incompleta del sistema, que registra los compromisos entre fases sin explicarlos.
@@ -85,32 +80,42 @@ Esa visión incompleta deja sin explicar varios fenómenos relevantes para el de
 
 La consecuencia práctica es la dificultad para elegir una configuración adecuada según el uso previsto. Según la ficha institucional, un servicio de chat interactivo, una consulta documental basada en recuperación (RAG, por sus siglas en inglés) y un procesamiento por lotes imponen prioridades diferentes. Una configuración apropiada para un escenario puede resultar, por tanto, inadecuada para otro.
 
-El caso de Qwen3-8B en una A100 ilustra la situación. La ficha institucional constata que el modelo puede ejecutarse sin dificultad en esa GPU, pero esta posibilidad no garantiza la existencia de una configuración universalmente óptima: el rendimiento depende de la carga de trabajo, de la concurrencia y de la representación numérica del modelo. Para esta combinación concreta no se dispone, además, de una caracterización experimental que separe ambas fases, como muestra la Tabla~\ref{tab:cap1:estado-arte}. Ese vacío, trasladado al despliegue, constituye el problema que la Sección~\ref{sec:cap1:formulacion} convierte en pregunta.
+El caso de Qwen3-8B en una A100 ilustra la situación. La ficha institucional constata que el modelo puede ejecutarse sin dificultad en esa GPU, pero esta posibilidad no garantiza la existencia de una configuración universalmente óptima: el rendimiento depende de la carga de trabajo, de la concurrencia y de la representación numérica del modelo. Para esta combinación concreta no se dispone, además, de una caracterización experimental que separe ambas fases, como muestra la Tabla~\ref{tab:cap1:estado-arte}. Ese vacío, trasladado al despliegue, constituye el problema del trabajo.
 
-\section{Formulación del problema}
-\label{sec:cap1:formulacion}
-
-El problema descrito en la sección anterior se formula mediante la siguiente pregunta principal: ¿cómo influyen la cuantización, la longitud de contexto y la concurrencia en el comportamiento de las fases prefill y decode de Qwen3-8B, ejecutado mediante vLLM sobre una GPU NVIDIA A100, en términos de rendimiento, memoria, energía y calidad?
+El problema descrito se formula mediante la siguiente pregunta principal: ¿cómo influyen la cuantización, la longitud de contexto y la concurrencia en el comportamiento de las fases prefill y decode de Qwen3-8B, ejecutado mediante vLLM sobre una GPU NVIDIA A100, en términos de rendimiento, memoria, energía y calidad?
 
 La pregunta principal se descompone en preguntas específicas que la vuelven medible. Las dos primeras atañen a cada fase por separado: cómo cambia el TTFT cuando aumenta la longitud de entrada y cómo cambia el TPOT cuando aumenta la concurrencia. La tercera examina cómo influye la longitud de salida en la latencia y en la energía.
 
 Otras tres preguntas se ocupan de la memoria y de la capacidad del sistema: cuánta memoria ocupan las representaciones numéricas BF16 y AWQ INT4, en qué condiciones la cuantización mejora la capacidad del sistema y qué configuraciones producen saturación o errores por falta de memoria. Las dos últimas cierran el recorrido: cuáles son los principales cuellos de botella de cada fase y con qué error estima un modelo predictivo básico el TTFT y el TPOT a partir de las variables experimentales delimitadas en la Sección~\ref{sec:cap1:alcance-incluye}.
 
-Responder a estas preguntas exige una secuencia de productos: un entorno en el que ejecutar el modelo, una carga controlada, un conjunto de mediciones, un análisis por fases y un modelo predictivo. La Sección~\ref{sec:cap1:objetivos} organiza esos productos como una cadena de objetivos.
+Responder a estas preguntas exige una secuencia de productos: un entorno en el que ejecutar el modelo, una carga controlada, un conjunto de mediciones, un análisis por fases y un modelo predictivo. Antes de que la Sección~\ref{sec:cap1:objetivos} organice esos productos como una cadena de objetivos, la Sección~\ref{sec:cap1:justificacion} expone por qué la pregunta merece respuesta.
+
+\section{Justificación}
+\label{sec:cap1:justificacion}
+
+La pregunta se justifica, en primer lugar, desde el punto de vista técnico. El análisis separado de prefill y decode permite explicar los compromisos entre latencia, throughput y memoria que las métricas agregadas solo registran. Williams et al.~\cite{williams2009roofline} proponen el modelo roofline, que relaciona el rendimiento alcanzable con los límites de cómputo y de ancho de banda de memoria del procesador. Este marco ofrece una referencia para situar cada fase respecto a los límites de la A100 y sustenta el análisis de cuellos de botella que persigue el objetivo específico OE4 (Sección~\ref{sec:cap1:objetivos-especificos}).
+
+Desde el punto de vista operativo, el trabajo orienta la elección de configuraciones para los tres escenarios de uso presentados en la Sección~\ref{sec:cap1:planteamiento}. Según la ficha institucional, el chat interactivo prioriza un TTFT y un TPOT bajos; la consulta documental requiere un equilibrio entre longitud de entrada, latencia y memoria; y el procesamiento por lotes prioriza el throughput y la eficiencia energética. Una caracterización por fases permite relacionar cada una de esas prioridades con la fase que la gobierna.
+
+La utilidad del trabajo se materializa en el prototipo Qwen-A100 Profiler, que la ficha institucional define como su producto tecnológico. Esta herramienta automatiza la ejecución de los experimentos, recolecta las métricas, almacena los resultados de forma estructurada y estima el TTFT y el TPOT mediante el modelo predictivo que persigue el objetivo específico OE5. El conjunto de datos experimental y los procedimientos de reproducción completan los entregables reutilizables, de modo que el estudio puede repetirse sin reconstruir la metodología.
+
+Esos entregables definen a los beneficiarios del trabajo. El beneficiario directo es el proyecto LLM-CoDesign, que obtiene su primer caso de estudio y una metodología de caracterización aplicable a otras combinaciones de modelo, hardware y software. Los beneficiarios indirectos son los equipos técnicos que despliegan LLM en infraestructura propia y necesitan criterios cuantitativos para configurar el servicio.
+
+La justificación exige, por último, que el trabajo sea factible. En el plano técnico, Qwen3-8B cabe en la memoria de una única A100, y las herramientas necesarias (vLLM, las herramientas de telemetría NVML y DCGM, y las bibliotecas de análisis de datos) son de libre acceso. El trabajo no requiere entrenar el modelo, desarrollar kernels de GPU ni modificar internamente vLLM. En el plano operativo, el plan de trabajo comprende doce semanas con una dedicación de 15 a 20 horas semanales, y la factibilidad depende de disponer de acceso controlado a la GPU durante las campañas de medición. Justificada la pregunta, la Sección~\ref{sec:cap1:objetivos} la traslada a una cadena de objetivos.
 
 \section{Objetivos}
 \label{sec:cap1:objetivos}
 
-Las preguntas de la sección anterior se responden mediante un objetivo general y cinco objetivos específicos. Sus enunciados reproducen literalmente los de la ficha institucional aprobada.
+Las preguntas formuladas en la Sección~\ref{sec:cap1:planteamiento} se responden mediante un objetivo general y cinco objetivos específicos. Sus enunciados reproducen literalmente los de la ficha institucional aprobada.
 
-\subsection{Objetivo general}
+\subsection{Objetivo General}
 \label{sec:cap1:objetivo-general}
 
 Caracterizar y modelar experimentalmente el comportamiento de las fases prefill y decode de Qwen3-8B sobre una GPU NVIDIA A100, evaluando el efecto de la cuantización, la longitud de contexto y la concurrencia sobre el rendimiento, la memoria, la energía y la calidad.
 
 El objetivo general traslada la pregunta principal a una acción verificable. Retoma los mismos tres factores y las mismas cuatro dimensiones que la pregunta nombra, y distingue dos tareas: caracterizar el comportamiento de cada fase y modelarlo.
 
-\subsection{Objetivos específicos}
+\subsection{Objetivos Específicos}
 \label{sec:cap1:objetivos-especificos}
 
 {\setlength{\emergencystretch}{1em}% evita desbordes en los OE literales
@@ -136,27 +141,14 @@ OE5 cierra el paso de la descripción a la anticipación. Un modelo predictivo b
 
 Para OE5, la ficha institucional establece como meta referencial un error porcentual absoluto medio (MAPE) inferior al 15--20~\% en las métricas principales. Esta meta es ajustable después de los experimentos piloto. No constituye, por tanto, un compromiso cerrado sobre la precisión del modelo predictivo.
 
-Leídos en conjunto, los cinco objetivos forman una cadena: el entorno de OE1 sostiene el benchmark de OE2, cuyas cargas producen las mediciones de OE3, que alimentan el análisis por fases de OE4 y, a través de él, el modelo predictivo de OE5. La dimensión de calidad que el objetivo general incluye se aborda mediante la comparación limitada entre BF16 y AWQ INT4 que precisa la Sección~\ref{sec:cap1:alcance-incluye}. Queda por justificar por qué esta cadena merece recorrerse, tarea que asume la Sección~\ref{sec:cap1:justificacion}.
+Leídos en conjunto, los cinco objetivos forman una cadena: el entorno de OE1 sostiene el benchmark de OE2, cuyas cargas producen las mediciones de OE3, que alimentan el análisis por fases de OE4 y, a través de él, el modelo predictivo de OE5. La dimensión de calidad que el objetivo general incluye se aborda mediante la comparación limitada entre BF16 y AWQ INT4 que precisa la Sección~\ref{sec:cap1:alcance-incluye}. Queda por precisar hasta dónde llega la respuesta, cometido de la Sección~\ref{sec:cap1:alcance}.
 
-\section{Justificación}
-\label{sec:cap1:justificacion}
-
-La cadena de objetivos se justifica, en primer lugar, desde el punto de vista técnico. El análisis separado de prefill y decode permite explicar los compromisos entre latencia, throughput y memoria que las métricas agregadas solo registran. Williams et al.~\cite{williams2009roofline} proponen el modelo roofline, que relaciona el rendimiento alcanzable con los límites de cómputo y de ancho de banda de memoria del procesador. Este marco ofrece una referencia para situar cada fase respecto a los límites de la A100 y sustenta el análisis de cuellos de botella de OE4.
-
-Desde el punto de vista operativo, el trabajo orienta la elección de configuraciones para los tres escenarios de uso presentados en la Sección~\ref{sec:cap1:planteamiento}. Según la ficha institucional, el chat interactivo prioriza un TTFT y un TPOT bajos; la consulta documental requiere un equilibrio entre longitud de entrada, latencia y memoria; y el procesamiento por lotes prioriza el throughput y la eficiencia energética. Una caracterización por fases permite relacionar cada una de esas prioridades con la fase que la gobierna.
-
-La utilidad del trabajo se materializa en el prototipo Qwen-A100 Profiler, que la ficha institucional define como su producto tecnológico. Esta herramienta automatiza la ejecución de los experimentos, recolecta las métricas, almacena los resultados de forma estructurada y estima el TTFT y el TPOT mediante el modelo predictivo de OE5. El conjunto de datos experimental y los procedimientos de reproducción completan los entregables reutilizables, de modo que el estudio puede repetirse sin reconstruir la metodología.
-
-Esos entregables definen a los beneficiarios del trabajo. El beneficiario directo es el proyecto LLM-CoDesign, que obtiene su primer caso de estudio y una metodología de caracterización aplicable a otras combinaciones de modelo, hardware y software. Los beneficiarios indirectos son los equipos técnicos que despliegan LLM en infraestructura propia y necesitan criterios cuantitativos para configurar el servicio.
-
-La justificación exige, por último, que el trabajo sea factible. En el plano técnico, Qwen3-8B cabe en la memoria de una única A100, y las herramientas necesarias (vLLM, las herramientas de telemetría NVML y DCGM, y las bibliotecas de análisis de datos) son de libre acceso. El trabajo no requiere entrenar el modelo, desarrollar kernels de GPU ni modificar internamente vLLM. En el plano operativo, el plan de trabajo comprende doce semanas con una dedicación de 15 a 20 horas semanales, y la factibilidad depende de disponer de acceso controlado a la GPU durante las campañas de medición. Justificada la pregunta, falta precisar hasta dónde llega la respuesta, cometido de la Sección~\ref{sec:cap1:alcance}.
-
-\section{Alcance y delimitaciones}
+\section{Alcance del Proyecto}
 \label{sec:cap1:alcance}
 
 La respuesta a la pregunta central vale únicamente dentro de un dominio experimental definido. La Sección~\ref{sec:cap1:alcance-incluye} precisa ese dominio y la Sección~\ref{sec:cap1:delimitaciones} enumera lo que queda fuera de él.
 
-\subsection{Alcance}
+\subsection{Elementos incluidos}
 \label{sec:cap1:alcance-incluye}
 
 La unidad de análisis es la configuración experimental $C = (M, W, H, S)$. En ella, $M$ es el modelo Qwen3-8B; $W$, las características de la carga de trabajo; $H$, una GPU NVIDIA A100; y $S$, vLLM con sus parámetros de configuración. La variante exacta de la A100, de 40~GB u 80~GB, se documenta como parte del entorno experimental, porque su capacidad de memoria condiciona los niveles máximos de longitud de contexto y concurrencia alcanzables.
@@ -167,7 +159,7 @@ Las métricas registradas son el TTFT, el TPOT, el throughput, la latencia total
 
 El alcance incluye una comparación limitada de calidad entre BF16 y AWQ INT4 para identificar posibles degradaciones asociadas a la cuantización. Incluye también el prototipo Qwen-A100 Profiler en su versión de producto mínimo viable, con una recomendación básica de configuraciones para los tres escenarios de uso. Definido lo que el trabajo abarca, la Sección~\ref{sec:cap1:delimitaciones} fija lo que excluye.
 
-\subsection{Delimitaciones}
+\subsection{Elementos excluidos}
 \label{sec:cap1:delimitaciones}
 
 Las exclusiones siguientes acotan el trabajo a un caso controlado e impiden que sus conclusiones se extiendan más allá de lo medido:
@@ -191,6 +183,6 @@ Las conclusiones del trabajo serán válidas únicamente para la combinación de
 % PENDIENTE (opción (a) aprobada por el autor): esta sección se redacta en
 % una sesión posterior. Aquí irá el marco teórico (Transformer, GQA
 % [ainslie2023gqa], KV cache, PagedAttention, AWQ, roofline, etc.).
-\section{Fundamentación teórica}
+\section{Fundamentación Teórica}
 \label{sec:cap1:fundamentacion}
 \textit{[Desarrollar los fundamentos teóricos, conceptos, modelos y tecnologías que sustentan el proyecto. Debe estar relacionado directamente con la solución propuesta y su implementación, aplicable a software, hardware o infraestructura.]}

@@ -40,11 +40,11 @@ El trabajo mide ambas fases de **Qwen3-8B** servido con **vLLM** en una **NVIDIA
 | Componente | Ubicación | Estado |
 |---|---|---|
 | Especificación del proyecto | `SPEC.md` | Borrador v0.1 (2026-10-08), completo, con 7 decisiones abiertas |
-| Plantilla y formato UTI | `uti_tfm.sty`, `main.tex` | Funcional; adaptado al nuevo formato institucional UTI (2026-10-22) |
+| Plantilla y formato UTI | `uti_tfm.sty`, `main.tex` | Funcional; adaptado al nuevo formato institucional UTI (2026-10-22) y verificado contra la carpeta `Ingenieria_Tecnologias_Informacion_Nuevo_Formato/` (2026-10-24) |
 | Páginas preliminares | `Preliminares/` | Estructura lista; lectores, resumen y abstract sin redactar |
-| Capítulo I · Introducción | `Capítulos/01_Introducción.tex` | **Redactado** como ensayo argumentativo (~4 000 palabras); 1 `% FALTA CITA` pendiente (línea 21) |
-| Capítulo II · Metodología | `Capítulos/02_Metodología.tex` | Solo la *Justificación técnica* redactada; el resto es texto guía de la plantilla |
-| Capítulos III–IV | `Capítulos/03_*.tex`, `04_*.tex` | Texto guía y ejemplos de la plantilla |
+| Capítulo I · Introducción | `Capítulos/01_Introducción.tex` | **Redactado** como ensayo argumentativo (~4 000 palabras), con las secciones de la plantilla UTI; falta la Fundamentación teórica y 1 `% FALTA CITA` (línea 16) |
+| Capítulo II · Metodología | `Capítulos/02_Metodología.tex` | **Redactado** (2026-10-24) en las siete secciones de la plantilla; 8 `% FALTA CITA` pendientes |
+| Capítulos III–IV | `Capítulos/03_*.tex`, `04_*.tex` | Texto guía y ejemplos de la plantilla; la línea 74 del Capítulo III cita `img:ejemplo_1` y `eq:disponibilidad`, eliminados del Capítulo II (referencias sin definir) |
 | Referencias | `referencias_1.bib` (en uso) | 11 entradas verificadas; las 10 claves citadas resuelven. `referencias.bib` conserva las 6 entradas de ejemplo |
 | Glosario y anexos | `Capítulos/06_Glosario.tex`, `Anexos/01_Anexo.tex` | Texto guía de la plantilla |
 | Modelo de datos | `docs/modelo_datos/` | Documento completo (652 líneas, PDF generado) |
@@ -86,7 +86,7 @@ Anexos/                     01 Anexo
 
 ### 3.3 Avance del Capítulo I
 
-Reescrito el 2026-10-21 como ensayo argumentativo. Secciones: Antecedentes (contexto y estado del arte), Planteamiento y formulación del problema, Objetivos, Justificación, Alcance y delimitaciones, y Fundamentación teórica. Cita vLLM/PagedAttention, Orca, Sarathi-Serve, DistServe, FlashAttention, AWQ, Transformer, roofline, Qwen3 y la A100. Falta una fuente sobre la adopción de LLM en asistentes conversacionales y aplicaciones similares.
+Reescrito el 2026-10-21 como ensayo argumentativo y reestructurado el 2026-10-24 según la plantilla UTI: Contextualización, Estado del Arte, Planteamiento del Problema (incluye la formulación de la pregunta), Justificación, Objetivos (General y Específicos), Alcance del Proyecto (Elementos incluidos y excluidos) y Fundamentación Teórica. La Fundamentación Teórica sigue sin redactar. `guia-capitulo-1_1.md` describe todavía la estructura anterior. Cita vLLM/PagedAttention, Orca, Sarathi-Serve, DistServe, FlashAttention, AWQ, Transformer, roofline, Qwen3 y la A100. Falta una fuente sobre la adopción de LLM en asistentes conversacionales y aplicaciones similares.
 
 ### 3.4 Contenido previsto por capítulo (SPEC §15)
 
@@ -104,7 +104,7 @@ Reescrito el 2026-10-21 como ensayo argumentativo. Secciones: Antecedentes (cont
 | pdfLaTeX | `latexmk -pdf main.tex` | Compila sin errores; usa TeX Gyre Adventor como fuente sustituta |
 | XeLaTeX | `latexmk -xelatex main.tex` | Falla: la fuente Century Gothic no está instalada |
 
-El último `main.pdf` se generó con pdfLaTeX (MiKTeX) el 2026-10-22, sin citas sin definir, y se versiona en git. Si la universidad exige Century Gothic real, hay que instalar la fuente y compilar con XeLaTeX.
+El último `main.pdf` se generó con pdfLaTeX (MiKTeX) el 2026-10-24, sin citas sin definir, y se versiona en git. Quedan dos referencias cruzadas sin definir en el texto guía del Capítulo III. Si la universidad exige Century Gothic real, hay que instalar la fuente y compilar con XeLaTeX.
 
 ---
 
@@ -186,11 +186,11 @@ python -m pytest                                       # pruebas
 
 | Rama | Commit | Contenido |
 |---|---|---|
-| `main` | `b0a2471` | Incluye el PR #1 (`main.tex`, Capítulo I inicial, citas IEEE) y el PR #2 (Capítulo I como ensayo argumentativo) |
-| `docs/nuevo-formato-uti` | `c9a0506` | Nuevo formato institucional UTI y corrección de las citas del Capítulo II; subida al remoto, **pendiente de fusionar** en `main` |
+| `main` | `de488ce` | Incluye los PR #1 y #2 (Capítulo I) y los PR #3–#5 (nuevo formato UTI, citas y redacción del Capítulo II) |
+| `docs/nuevo-formato-uti` | último commit | Fusionada en `main` hasta `c2c5298`; contiene además la reestructuración del Capítulo I según la plantilla UTI, **pendiente de subir y fusionar** |
 | `docs/main-tex-datos-tesis` | `7e478af` | Ya fusionada en `main`; puede borrarse |
 
-- Todas las ramas están sincronizadas con `origin`.
+- Las ramas están sincronizadas con `origin`, salvo el último commit de `docs/nuevo-formato-uti`.
 - Ya se versionan `SPEC.md`, `docs/modelo_datos/`, `experimentos/` (sin `.venv/`), `CLAUDE.md`, este archivo y `main.pdf`.
 - Ignorados por `.gitignore`: auxiliares de LaTeX, `tmp_*`, `uploads/`, `prism-uploads/`, entorno y cachés de Python, e `informacion-tesis*.txt` (contiene correos de terceros).
 
@@ -211,10 +211,10 @@ python -m pytest                                       # pruebas
 ## 8. Próximos pasos
 
 1. Cerrar con el tutor las decisiones abiertas, en especial el acceso a la A100 y la línea de investigación.
-2. Fusionar `docs/nuevo-formato-uti` en `main`.
+2. Subir `docs/nuevo-formato-uti` y fusionar en `main` la reestructuración del Capítulo I.
 3. Unificar la bibliografía: dejar un único `.bib` y alinear `CLAUDE.md` con `Capítulos/05_Referencias.tex`.
-4. Resolver el `% FALTA CITA` del Capítulo I y valorar si se añaden Splitwise y LLM-Viewer al estado del arte.
-5. Redactar el Capítulo II (diagnóstico, área de estudio, diseño factorial E1–E5, técnicas e instrumentos, RF/RNF y diseño del banco) y quitar los ejemplos de la plantilla.
+4. Resolver el `% FALTA CITA` del Capítulo I, redactar su Fundamentación Teórica y valorar si se añaden Splitwise y LLM-Viewer al estado del arte. Actualizar `guia-capitulo-1_1.md` a la estructura de la plantilla.
+5. Resolver las 8 marcas `% FALTA CITA` del Capítulo II.
 6. Completar el banco de pruebas (RF1, RF3–RF7) y ejecutar la corrida piloto.
 7. Ejecutar la campaña E1–E5, ajustar y validar los modelos, y redactar los Capítulos III–IV.
 8. Completar las páginas preliminares (lectores, resumen y abstract), el glosario y los anexos.
