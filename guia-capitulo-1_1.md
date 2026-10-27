@@ -41,41 +41,46 @@ Cada entrada del `.bib` fue buscada en la web y confirmada contra su fuente prim
 
 ---
 
-## 3. Estructura propuesta del Capítulo 1
+## 3. Estructura del Capítulo 1
 
-Antes de escribir, confirma con el Ing. Rubio la estructura que exige la plantilla de la UTI, porque varía entre facultades. La siguiente es la más común en trabajos de integración curricular:
+La estructura la fija la plantilla del nuevo formato UTI (`Ingenieria_Tecnologias_Informacion_Nuevo_Formato/Capítulos/01_Introducción.tex`), que es normativa. El capítulo sigue estas secciones, con estos títulos y en este orden (ajustado el 2026-10-24):
 
 ```
-CAPÍTULO I — EL PROBLEMA
-1.1  Antecedentes
-1.2  Planteamiento del problema
-1.3  Formulación del problema
-1.4  Objetivos
-     1.4.1 Objetivo general
-     1.4.2 Objetivos específicos
-1.5  Justificación
-1.6  Alcance y delimitaciones
+CAPÍTULO I — INTRODUCCIÓN
+1.1  Contextualización
+1.2  Estado del Arte
+1.3  Planteamiento del Problema
+1.4  Justificación
+1.5  Objetivos
+     1.5.1 Objetivo General
+     1.5.2 Objetivos Específicos
+1.6  Alcance del Proyecto
+     1.6.1 Elementos incluidos
+     1.6.2 Elementos excluidos
+1.7  Fundamentación Teórica
 ```
 
 ### Contenido mínimo de cada sección
 
-**1.1 Antecedentes.** De lo general a lo particular: crecimiento de los LLM y su costo de despliegue → la inferencia como problema de sistemas, no solo de modelado → trabajos previos de caracterización (Orca, vLLM, Sarathi-Serve, DistServe) → qué queda sin resolver. Aquí es donde van las citas.
+**1.1 Contextualización.** De lo general a lo particular: crecimiento de los LLM y su costo de despliegue → la inferencia como problema de sistemas, no solo de modelado → el proyecto LLM-CoDesign y el caso Qwen3-8B + A100 + vLLM.
 
-**1.2 Planteamiento del problema.** Copia el argumento central de la ficha: las métricas agregadas (tokens/s) ocultan el comportamiento diferenciado de prefill y decode, y por eso no explican por qué una configuración mejora el throughput y empeora la latencia interactiva. Las cinco preguntas sin respuesta de la ficha son el corazón de esta sección.
+**1.2 Estado del Arte.** Mínimo cinco trabajos citados en IEEE (Orca, vLLM, FlashAttention, Sarathi-Serve, DistServe, AWQ), con aporte, limitación y relación con el TFG, y una tabla comparativa. Termina señalando qué queda sin resolver para esta combinación.
 
-**1.3 Formulación.** Una sola pregunta de investigación, redactada como pregunta. Algo en la línea de: *¿Cómo afectan la longitud de contexto, la concurrencia y la cuantización al comportamiento de las fases prefill y decode de Qwen3-8B sobre una GPU NVIDIA A100 con vLLM?*
+**1.3 Planteamiento del Problema.** Copia el argumento central de la ficha: las métricas agregadas (tokens/s) ocultan el comportamiento diferenciado de prefill y decode, y por eso no explican por qué una configuración mejora el throughput y empeora la latencia interactiva. La plantilla no tiene una sección de formulación, así que la sección se cierra con la pregunta de investigación, redactada como pregunta, y sus preguntas específicas. Algo en la línea de: *¿Cómo afectan la longitud de contexto, la concurrencia y la cuantización al comportamiento de las fases prefill y decode de Qwen3-8B sobre una GPU NVIDIA A100 con vLLM?* No incluyas la solución en esta sección.
 
-**1.4 Objetivos.** Van literales de la ficha. No los reformules: deben coincidir con el acta aprobada.
+**1.4 Justificación.** Va antes de los objetivos. Cubre lo que pide la plantilla: importancia, impacto técnico y operativo, utilidad de la solución (Qwen-A100 Profiler), beneficiarios directos e indirectos y factibilidad técnica y operativa. Como los objetivos aún no se han presentado, cuando menciones uno nombra el objetivo específico y remite a la Sección 1.5.
 
-**1.5 Justificación.** Tres ángulos: técnico (configurar eficientemente un LLM en infraestructura GPU limitada), institucional (primer caso de estudio del proyecto LLM-CoDesign) y social (universidades y laboratorios sin acceso a infraestructura hiperescalable).
+**1.5 Objetivos.** Van literales de la ficha. No los reformules: deben coincidir con el acta aprobada.
 
-**1.6 Alcance y delimitaciones.** La tabla de variables experimentales y la lista de exclusiones de la ficha. Esta sección te protege en la defensa: todo lo que declares fuera de alcance no te lo pueden reclamar después.
+**1.6 Alcance del Proyecto.** La tabla de variables experimentales (elementos incluidos) y la lista de exclusiones de la ficha (elementos excluidos). Esta sección te protege en la defensa: todo lo que declares fuera de alcance no te lo pueden reclamar después.
+
+**1.7 Fundamentación Teórica.** Los fundamentos que sustentan el trabajo: Transformer, GQA, KV cache, PagedAttention, batching continuo, chunked prefill, AWQ, modelo roofline, MFU y MBU, y las métricas TTFT, TPOT, ITL, throughput, goodput y energía por token. Los valores numéricos para Qwen3-8B y la A100 se calculan en el Capítulo 2; aquí solo las relaciones de las que se derivan.
 
 ---
 
 ## 4. Tres errores que arruinan un Capítulo 1
 
-1. **Escribir el marco teórico aquí.** Explicar qué es un Transformer, qué es PagedAttention o cómo funciona AWQ pertenece al Capítulo 2. En el Capítulo 1 solo se mencionan al pasar, con cita.
+1. **Dispersar el marco teórico.** Explicar qué es un Transformer, qué es PagedAttention o cómo funciona AWQ pertenece a la Sección 1.7 Fundamentación Teórica. En las secciones 1.1 a 1.6 solo se mencionan al pasar, con cita.
 
 2. **Objetivos que no coinciden con el acta.** Si "reformulas para que suene mejor", generas una discrepancia con el documento institucional aprobado. Los cinco objetivos específicos van tal como están.
 
@@ -127,12 +132,13 @@ Detente aquí y espera mi aprobación del esquema.
 Escribe el Capítulo 1 en el archivo .tex correspondiente, con estas
 secciones:
 
-1.1 Antecedentes
-1.2 Planteamiento del problema
-1.3 Formulación del problema
-1.4 Objetivos (general y los cinco específicos)
-1.5 Justificación
-1.6 Alcance y delimitaciones
+1.1 Contextualización
+1.2 Estado del Arte
+1.3 Planteamiento del Problema (cierra con la pregunta de investigación)
+1.4 Justificación
+1.5 Objetivos (General y los cinco Específicos)
+1.6 Alcance del Proyecto (Elementos incluidos y Elementos excluidos)
+1.7 Fundamentación Teórica
 
 REGLAS ESTRICTAS:
 
@@ -144,9 +150,9 @@ REGLAS ESTRICTAS:
   con un comentario LaTeX "% FALTA CITA: <qué haría falta>" y
   repórtamelo al final. NO inventes referencias, autores, años, DOIs
   ni títulos bajo ninguna circunstancia.
-- No escribas marco teórico. No expliques qué es un Transformer, qué
-  es PagedAttention, qué es AWQ ni cómo funciona el KV cache: eso
-  pertenece al Capítulo 2. Aquí solo se mencionan con cita.
+- El marco teórico va solo en 1.7 Fundamentación Teórica. En 1.1–1.6
+  no expliques qué es un Transformer, qué es PagedAttention, qué es AWQ
+  ni cómo funciona el KV cache: ahí solo se mencionan con cita.
 - No anticipes resultados ni conclusiones. Nada de "se espera
   demostrar que...". Aún no se ha medido nada.
 - No inventes cifras. Las únicas cifras permitidas son las que están

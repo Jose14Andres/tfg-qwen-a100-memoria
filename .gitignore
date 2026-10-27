@@ -21,6 +21,7 @@ tmp_*
 # --- Material institucional / de trabajo (no publicar) ---
 uploads/
 prism-uploads/
+Ingenieria_Tecnologias_Informacion_Nuevo_Formato/
 
 # --- Python (entorno y cachés) ---
 .venv/
