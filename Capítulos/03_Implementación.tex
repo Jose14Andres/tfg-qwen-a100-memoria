@@ -2,76 +2,269 @@
 \label{chap:implementacion}
 
 \section{Descripción de la Solución}
-\textit{[Presentar detalladamente la solución implementada, indicando los componentes desarrollados, configurados o integrados.]}
+\label{sec:cap3:descripcion}
+
+La solución implementada es un banco de pruebas que mide por separado las fases prefill y decode de Qwen3-8B servido con vLLM en una A100-SXM4-40GB del clúster HPC CEDIA. Se compone del entorno de software congelado y del parche de compatibilidad descritos en la Sección~\ref{sec:cap2:diseno}, del script de medición \texttt{bench\_pd.sh}, cuyas fases recoge la Tabla~\ref{tab:cap2:fases}, y del script de campaña \texttt{a100\_qwen3\_8b.sh}, que la Sección~\ref{sec:cap3:rediseno} presenta como respuesta a los problemas observados en la primera ejecución.
+
+Este capítulo informa de la primera ejecución completa sobre la A100 con el modelo objetivo, el trabajo de Slurm 30732. Ese trabajo cubrió las fases 0 a 2 de \texttt{bench\_pd.sh}: registro del entorno, prueba de humo y barrido sin servidor. Sus resultados son, por tanto, resultados piloto: validan el banco y el método de diferencia de latencias, pero no constituyen todavía la campaña experimental.
+% PENDIENTE: describir el cliente tfgbench (RF3-RF6) y los experimentos E1 y E2 cuando se complete la campaña.
 
 \section{Proceso de Implementación}
-\textit{[Describir paso a paso la ejecución técnica del proyecto, incluyendo desarrollo o configuración, integración de componentes y despliegue en un entorno real o controlado.]}
+\label{sec:cap3:proceso}
 
-\section{Pruebas y Validación}
-\textit{[Describir las pruebas realizadas para validar el funcionamiento de la solución, tales como pruebas funcionales, integrales, de seguridad, rendimiento o conectividad, según aplique.]}
+\subsection{Ejecución del trabajo 30732}
+\label{sec:cap3:trabajo}
 
-\section{Resultados}
-\textit{[Presentar los resultados obtenidos durante la validación, comparando la situación inicial con la posterior a la implementación. Incluir métricas, indicadores o evidencias.]}
-
-\subsection{Ejemplo de Figura 2}
-Como ejemplo de mención con referencia: en la Figura~\ref{fig:ejemplo_2} se observa una salida visual que puede emplearse para documentar arquitectura o resultados.
-
-\begin{figure}[htbp]
-  \centering
-  \includegraphics[width=0.80\textwidth]{Capítulos/fig/fig_ejemplo_2.png}
-  \caption{Ejemplo de figura para presentar resultados o arquitectura implementada.}
-  \label{fig:ejemplo_2}
-\end{figure}
-\elaboradopor{Estudiante}
-\fuente{Elaboración propia}
-
-\subsection{Ejemplo de Tabla 2}
-Como ejemplo de mención con referencia: la Tabla~\ref{tab:ejemplo_2} muestra una comparación antes/después para análisis cuantitativo.
+El trabajo 30732 se ejecutó el 24 de octubre de 2026 sobre una A100 completa, sin particiones MIG. La Tabla~\ref{tab:cap3:trabajo} recoge el entorno registrado por la fase 0 en \texttt{entorno.txt}. La carga del nodo al inicio, 37,20 en la ventana de un minuto sobre 256 núcleos, es baja frente a la documentada en la Sección~\ref{sec:cap2:control}.
 
 \begin{table}[htbp]
   \centering
-  \caption{Ejemplo de tabla comparativa antes y después de la implementación.}
-  \label{tab:ejemplo_2}
-  \begin{tabular}{|l|c|c|}
+  \caption{Entorno registrado en el trabajo 30732.}
+  \label{tab:cap3:trabajo}
+  \small
+  \begin{tabular}{|p{0.32\textwidth}|p{0.60\textwidth}|}
     \hline
-    Métrica & Antes & Después \\
+    \textbf{Elemento} & \textbf{Valor} \\
     \hline
-    Tiempo de respuesta (ms) & 850 & 320 \\
+    Nodo & \texttt{compute-0-1} \\
     \hline
-    Disponibilidad (\%) & 96.2 & 99.3 \\
+    Inicio & 24 de octubre de 2026, 11:07:24 (UTC$-$5) \\
     \hline
-    Tasa de error (\%) & 4.8 & 1.2 \\
+    Carga al inicio (1, 5 y 15 min) & 37,20; 36,72; 40,91 \\
+    \hline
+    GPU & NVIDIA A100-SXM4-40GB, 40\,960~MiB, límite de 400~W, 1410~MHz máx. \\
+    \hline
+    Driver & 535.161.08 \\
+    \hline
+    Software & vLLM 0.20.0, PyTorch 2.11.0+cu129, CUDA 12.9 \\
+    \hline
+    Modelo & \texttt{Qwen/Qwen3-8B}, BF16 \\
+    \hline
+    Opciones del motor & \texttt{max\_model\_len}=8192, \texttt{gpu\_memory\_utilization}=0,90, caché de prefijos desactivada, chunked prefill activo con 8192 tokens por lote, grafos CUDA y \texttt{torch.compile} activos \\
     \hline
   \end{tabular}
 \end{table}
-\elaboradopor{Estudiante}
-\fuente{Resultados de pruebas funcionales}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{\texttt{entorno.txt} y registros del trabajo 30732}
 
-\subsection{Ejemplo de Imagen 2}
-Como ejemplo de referencia narrativa: la Imagen~\ref{img:ejemplo_2} permite incorporar evidencias de interfaz o panel operativo.
+Cada configuración del barrido sin servidor se midió con \texttt{vllm bench latency}, que crea un motor nuevo en cada invocación, ejecuta tres iteraciones de calentamiento y mide diez. La Tabla~\ref{tab:cap3:arranques} desglosa la duración de cada ejecución. La columna de inicialización corresponde al tiempo que vLLM declara para perfilar la memoria, crear el KV cache y calentar el modelo, del cual la mayor parte es compilación con \texttt{torch.compile}.
 
-\begin{imagen}[htbp]
+\begin{table}[htbp]
   \centering
-  \includegraphics[width=0.80\textwidth]{Capítulos/img/img_ejemplo_2.png}
-  \caption{Ejemplo de imagen para evidenciar interfaz, panel o consola de operación.}
-  \label{img:ejemplo_2}
-\end{imagen}
-\elaboradopor{Estudiante}
-\fuente{Evidencia del entorno de prueba}
+  \caption{Duración de las ejecuciones del trabajo 30732.}
+  \label{tab:cap3:arranques}
+  \small
+  \begin{tabular}{|p{0.24\textwidth}|p{0.12\textwidth}|p{0.18\textwidth}|p{0.14\textwidth}|p{0.13\textwidth}|}
+    \hline
+    \textbf{Ejecución} & \textbf{Inicio} & \textbf{Inicialización del motor (s)} & \textbf{Duración total (min)} & \textbf{Medición (s)} \\
+    \hline
+    Prueba de humo ($L_{in}$ máx. 2048) & 11:32:35 & 632,8 & 15,9 & --- \\
+    \hline
+    $L_{in}=128$, $L_{out}=1$ & 12:11:47 & 1452,4 & 74,6 & 0,17 \\
+    \hline
+    $L_{in}=128$, $L_{out}=129$ & 13:49:08 & 436,4 & 28,7 & 16,95 \\
+    \hline
+    $L_{in}=512$, $L_{out}=1$ & 14:47:50 & 248,6 & 43,1 & 0,37 \\
+    \hline
+    $L_{in}=512$, $L_{out}=129$ & 15:55:36 & --- & Incompleta & --- \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Registros \texttt{smoke.txt} y \texttt{lat\_in*\_out*\_bs1.log} del trabajo 30732}
 
-\subsection{Ejemplo de Ecuación 2}
-Ejemplo de referencia a ecuación: la Ecuación~\ref{eq:mejora} calcula el porcentaje de mejora de una métrica respecto al valor inicial.
+La tabla muestra una desproporción que condiciona el resto de la implementación. Las tres configuraciones completadas sumaron menos de 18~s de medición efectiva en un trabajo de casi cinco horas. La primera compilación de \texttt{torch.compile} tardó 1416~s y guardó su resultado en la caché \texttt{\textasciitilde/.cache/\allowbreak vllm/\allowbreak torch\_compile\_cache}, lo que explica que las inicializaciones siguientes bajaran a 436~s y 249~s. Aun así, cada ejecución siguió costando entre 29 y 75 minutos.
+
+La inicialización del motor no explica toda esa duración. En la primera ejecución transcurrieron 38 minutos entre la lectura de la configuración, a las 12:12:25, y la creación del motor, a las 12:50:35, y entre el final de una ejecución y el primer registro de la siguiente pasaron 23 y 30 minutos. La causa de estas esperas no quedó determinada. Los pesos residen en un sistema de archivos NFS4, según el propio registro de vLLM, y su lectura tardó 57~s en la primera ejecución y 10~s en las siguientes, de modo que la lectura de los pesos tampoco basta para explicarlas.
+
+La quinta configuración no llegó a medirse. La telemetría se detiene a las 16:06:11, cuando el motor de esa ejecución aún se estaba inicializando, y ningún registro indica un error.
+% REVISAR: confirmar con sacct -j 30732 si el trabajo terminó por el límite de tiempo.
+
+\subsection{Rediseño de la ejecución}
+\label{sec:cap3:rediseno}
+
+El trabajo 30732 demostró que, en esta plataforma, el costo dominante no es la medición sino el arranque del motor. Con un arranque de entre 29 y 75 minutos, un barrido que crea un motor por configuración no cabe en un trabajo de Slurm, por largo que sea su límite de tiempo. La decisión de la Sección~\ref{sec:cap2:metodologia} de levantar el servidor una sola vez y recorrer todas las configuraciones contra él pasa así de ser una optimización a ser una condición de viabilidad.
+
+El script \texttt{a100\_qwen3\_8b.sh} materializa esa decisión. Solicita una A100 completa en la partición \texttt{gpu-dev}, levanta un único \texttt{vllm serve} con las mismas opciones de la Tabla~\ref{tab:cap3:trabajo}, espera hasta 45 minutos a que el endpoint \texttt{/health} responda y ejecuta después los experimentos con el cliente \texttt{tfgbench} en el mismo nodo, contra \texttt{127.0.0.1}. Al ejecutar el cliente y el servidor en el mismo nodo, el TTFT medido no incluye latencia de red. Tras cada experimento, el script guarda las métricas acumuladas de \texttt{/metrics}, que sostienen el tercer método de la triangulación de la Sección~\ref{sec:cap2:triangulacion}. Además, reduce el periodo de muestreo de la telemetría de 2~s a 1~s. La Tabla~\ref{tab:cap3:e1e2} resume los dos experimentos que el script ejecuta.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Experimentos ejecutados por \texttt{a100\_qwen3\_8b.sh}.}
+  \label{tab:cap3:e1e2}
+  \small
+  \begin{tabular}{|p{0.22\textwidth}|p{0.34\textwidth}|p{0.34\textwidth}|}
+    \hline
+    \textbf{Parámetro} & \textbf{E1: prefill} & \textbf{E2: concurrencia} \\
+    \hline
+    Longitud de entrada & 128, 256, 512, 1024, 2048, 4096 y 7680 & 1024 \\
+    \hline
+    Longitud de salida & 128 & 256 \\
+    \hline
+    Concurrencia & 1 & 1, 2, 4, 8, 16, 32 y 64 \\
+    \hline
+    Solicitudes medidas por punto & 30 (más 3 de calentamiento) & 256 (más 4 de calentamiento) \\
+    \hline
+    Métricas principales & TTFT & TPOT, ITL y throughput \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{\texttt{configs/e1\_prefill.toml} y \texttt{configs/e2\_concurrencia.toml}}
+
+En ambos experimentos los prompts son secuencias aleatorias de identificadores de token de longitud exacta, generadas con semilla 0 y sin prefijos compartidos, y las solicitudes se envían con temperatura 0 e \texttt{ignore\_eos}. La longitud máxima de E1 es 7680 y no 8192, porque la suma de entrada y salida no puede superar el \texttt{max\_model\_len} de 8192. En E2, con 64 secuencias de 1280 tokens, el KV cache ocupa unos 11,3~GiB y cabe en la memoria disponible sin expulsiones, según el presupuesto de la Sección~\ref{sec:cap3:memoria}.
+
+El primer lanzamiento de este script, el trabajo 31157 del 27 de octubre, no llegó a medir. El servidor no respondió en los 45 minutos de espera, su registro quedó vacío y la GPU no llegó a ocupar memoria.
+% PENDIENTE: actualizar con el resultado del diagnóstico de los trabajos 31157 y 31299 y con la ejecución de E1 y E2.
+
+\section{Pruebas y Validación}
+\label{sec:cap3:pruebas}
+
+\subsection{Prueba de humo y verificación del dispositivo}
+\label{sec:cap3:humo}
+
+La prueba de humo cargó Qwen3-8B y generó 64 tokens de texto coherente en español a partir de un prompt sobre la inferencia de modelos de lenguaje. Su tiempo total, 13,77~s, incluye la primera ejecución del modelo y no se usa como medida de rendimiento. La prueba cumple su función: confirma que el entorno parcheado de la Sección~\ref{sec:cap2:parche} carga el modelo y genera texto antes de comprometer el resto del trabajo.
+
+El dispositivo se verificó con \texttt{nvidia-smi -L}, que identifica una A100-SXM4-40GB completa y no una instancia MIG, conforme a la precaución de la Sección~\ref{sec:cap2:diagnostico}. El backend de atención seleccionado fue FlashAttention-2, como anticipa la Sección~\ref{sec:cap2:versiones}.
+
+\subsection{Estabilidad de las mediciones}
+\label{sec:cap3:estabilidad}
+
+La Tabla~\ref{tab:cap3:estabilidad} resume la dispersión de las diez iteraciones medidas en cada configuración. El coeficiente de variación no supera el 0,6~\%, y el rango completo de cada configuración es inferior a 1~ms. Con lote 1 y sin servidor, la medición es, por tanto, muy repetible dentro de un mismo trabajo.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Dispersión de la latencia en las diez iteraciones medidas.}
+  \label{tab:cap3:estabilidad}
+  \small
+  \begin{tabular}{|p{0.22\textwidth}|p{0.12\textwidth}|p{0.14\textwidth}|p{0.10\textwidth}|p{0.11\textwidth}|p{0.11\textwidth}|}
+    \hline
+    \textbf{Configuración} & \textbf{Media (ms)} & \textbf{Desv. típica (ms)} & \textbf{CV (\%)} & \textbf{Mín. (ms)} & \textbf{Máx. (ms)} \\
+    \hline
+    $L_{in}=128$, $L_{out}=1$ & 17,087 & 0,099 & 0,58 & 16,943 & 17,205 \\
+    \hline
+    $L_{in}=512$, $L_{out}=1$ & 37,207 & 0,138 & 0,37 & 36,984 & 37,396 \\
+    \hline
+    $L_{in}=128$, $L_{out}=129$ & 1695,221 & 0,306 & 0,02 & 1694,844 & 1695,809 \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Archivos \texttt{lat\_in*\_out*\_bs1.json} del trabajo 30732}
+
+Las iteraciones de calentamiento confirman la necesidad de descartarlas. La primera de cada configuración tardó 25,2~s, 14,9~s y 33,5~s, respectivamente, entre 9 y 1500 veces más que la media de las iteraciones medidas, porque incluye la captura de grafos y la carga de kernels pendientes. Incluirla en la media habría invalidado la medición, como prevé el requerimiento RNF3.
+
+La baja dispersión no garantiza, sin embargo, la reproducibilidad entre trabajos. Las diez iteraciones de cada configuración se ejecutaron en menos de 20~s, dentro de un mismo motor y con una carga del nodo estable. La variación entre trabajos, nodos y versiones del driver, que la Sección~\ref{sec:cap2:control} identifica como la principal amenaza, solo podrá estimarse con repeticiones en trabajos distintos.
+
+\subsection{Contraste del presupuesto de memoria}
+\label{sec:cap3:memoria}
+
+Los registros de vLLM permiten contrastar el presupuesto analítico de la Sección~\ref{sec:cap2:techos}. Los pesos ocuparon 15,27~GiB, frente a los 15,3~GiB de la Ecuación~\ref{eq:cap2:pesos}. Con \texttt{gpu\_memory\_utilization} de 0,90, vLLM reservó 16,32~GiB para el KV cache, equivalentes a 118\,832 tokens, y 2,44~GiB para los grafos CUDA. El cociente entre ambas cifras del KV cache es de 147\,456~bytes por token, que coincide exactamente con la Ecuación~\ref{eq:cap2:kv-token}.
+
+El contraste revela que la configuración más exigente de la ficha no cabe en la GPU con estas opciones. Con 8192 tokens por solicitud, el KV cache disponible admite 14,51 secuencias simultáneas, según el propio registro de vLLM, y no las 16 que exige la ficha. En las ejecuciones posteriores, la reserva subió a 16,85~GiB y 122\,672 tokens, que admiten 14,97 secuencias, cifra que sigue por debajo de 16. El presupuesto de la Ecuación~\ref{eq:cap2:mem-total} era correcto en sus términos, pero omitía los 2,44~GiB de los grafos CUDA y el 10~\% de la memoria que vLLM deja sin reservar.
+
+Este resultado cierra el primero de los huecos señalados en la Sección~\ref{sec:cap2:metodologia}. La combinación de 8192 tokens y concurrencia 16 solo sería ejecutable aumentando \texttt{gpu\_memory\_utilization}, desactivando los grafos CUDA con \texttt{-{}-enforce-eager} o aceptando que el planificador ponga solicitudes en espera. Cualquiera de las tres opciones altera lo que se mide, y por esa razón E1 limita la entrada a 7680 tokens con una sola solicitud, y E2 limita la entrada a 1024 tokens.
+% PENDIENTE: acordar con el tutor la sustitución del nivel 8192 x 16 de la ficha.
+
+\section{Resultados}
+\label{sec:cap3:resultados}
+
+Los resultados de esta sección proceden exclusivamente del barrido sin servidor del trabajo 30732, con lote $B=1$. Se calculan con el método de diferencia de latencias de la Sección~\ref{sec:cap2:triangulacion} y se contrastan con los techos teóricos de la Sección~\ref{sec:cap2:techos}.
+
+\subsection{Fase de prefill}
+\label{sec:cap3:prefill}
+
+La Tabla~\ref{tab:cap3:prefill} aplica las Ecuaciones~\ref{eq:cap2:tprefill} y~\ref{eq:cap2:xprefill} a las dos longitudes de entrada medidas. La columna de MFU (\textit{model FLOPs utilization}) expresa el throughput de prefill como fracción del techo de cómputo~\cite{chowdhery2023palm}, con la Ecuación~\ref{eq:cap3:mfu}, donde $P_{BF16}$ es el rendimiento BF16 denso de la A100 y $N$ el número de parámetros.
 
 \begin{equation}
-\label{eq:mejora}
-Mejora\,(\%) = \frac{Valor_{antes} - Valor_{despues}}{Valor_{antes}} \times 100
+\label{eq:cap3:mfu}
+\mathrm{MFU} = \frac{2N \times X_{prefill}}{P_{BF16}}
 \end{equation}
-\addeqtolist{Cálculo porcentual de mejora obtenida}
+\addeqtolist{Utilización de cómputo del prefill}
 
-\subsection{Ejemplos de Referencias Cruzadas}
-Ejemplo 1 de referencia cruzada entre capítulos: el análisis base se desarrolla en el Capítulo~\ref{chap:introduccion}, mientras que el enfoque metodológico se detalla en el Capítulo~\ref{chap:metodologia}.
+\begin{table}[htbp]
+  \centering
+  \caption{Latencia y throughput de prefill con lote 1.}
+  \label{tab:cap3:prefill}
+  \small
+  \begin{tabular}{|p{0.16\textwidth}|p{0.22\textwidth}|p{0.26\textwidth}|p{0.18\textwidth}|}
+    \hline
+    \textbf{$L_{in}$ (tokens)} & \textbf{$T_{prefill}$ (ms)} & \textbf{$X_{prefill}$ (tok/s)} & \textbf{MFU (\%)} \\
+    \hline
+    128 & 17,09 & 7\,491 & 39,4 \\
+    \hline
+    512 & 37,21 & 13\,761 & 72,3 \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Elaboración propia a partir del trabajo 30732}
 
-Ejemplo 2 de referencia cruzada entre elementos: para relacionar diseño y validación se puede enlazar el apartado \emph{\nameref{sec:diseno_solucion}} (Capítulo~\ref{chap:metodologia}) con la Tabla~\ref{tab:ejemplo_2}, la Imagen~\ref{img:ejemplo_1} y la Ecuación~\ref{eq:disponibilidad}.
+El throughput de prefill casi se duplica al cuadruplicar la entrada, mientras que la latencia solo se multiplica por 2,2. Ese comportamiento indica que una parte de $T_{prefill}$ no depende de la longitud de entrada. Si se supone una relación lineal, $T_{prefill} = a + b \, L_{in}$, los dos puntos medidos determinan la pendiente de la Ecuación~\ref{eq:cap3:pendiente} y una ordenada en el origen $a \approx 10{,}4$~ms.
+
+\begin{equation}
+\label{eq:cap3:pendiente}
+b = \frac{T_{prefill}(512) - T_{prefill}(128)}{512 - 128} = \frac{37{,}21 - 17{,}09}{384}~\mathrm{ms} \approx 0{,}0524~\mathrm{ms/token}
+\end{equation}
+\addeqtolist{Costo marginal del prefill por token de entrada}
+
+El inverso de esa pendiente equivale a 19\,085~tok/s, prácticamente igual al techo de 19\,000~tok/s de la Ecuación~\ref{eq:cap2:techo-prefill}. Sin embargo, esta coincidencia no permite afirmar que el prefill alcance el 100~\% del techo de cómputo en el margen. Lo más probable es que el modelo lineal sea demasiado simple. Con 128 tokens, las multiplicaciones de matrices son pequeñas y aprovechan peor los Tensor Cores que con 512, de modo que la eficiencia crece con $L_{in}$ y la pendiente entre dos puntos queda subestimada. Además, la Ecuación~\ref{eq:cap2:techo-prefill} ignora las operaciones de la atención, que crecen con el cuadrado de la longitud.
+
+Con dos puntos no es posible separar el costo fijo de la variación de la eficiencia. Por esa razón, el experimento E1 mide siete longitudes entre 128 y 7680 tokens. El dato robusto de este piloto es la cota inferior: con 512 tokens, el prefill ya alcanza el 72~\% del techo de cómputo, lo que confirma que es una fase limitada por el cómputo.
+
+\subsection{Fase de decode}
+\label{sec:cap3:decode}
+
+La Ecuación~\ref{eq:cap2:tpot} aplicada a la entrada de 128 tokens da un TPOT de 13,11~ms, equivalente a 76,3~tok/s por secuencia. Ese valor representa el 80~\% del techo de 95~tok/s de la Ecuación~\ref{eq:cap2:techo-decode}. La Ecuación~\ref{eq:cap3:mbu} expresa la misma relación como MBU (\textit{model bandwidth utilization}), la fracción del ancho de banda de la memoria que se aprovecha al leer los pesos en cada paso~\cite{agarwal2023llminference}.
+
+\begin{equation}
+\label{eq:cap3:mbu}
+\mathrm{MBU} = \frac{M_{pesos} / \mathrm{TPOT}}{BW_{HBM}} = \frac{16{,}4~\mathrm{GB} / 13{,}11~\mathrm{ms}}{1555~\mathrm{GB/s}} = \frac{1251~\mathrm{GB/s}}{1555~\mathrm{GB/s}} \approx 80~\%
+\end{equation}
+\addeqtolist{Utilización del ancho de banda en el decode}
+
+Un MBU del 80~\% indica que el decode con lote 1 está limitado por el ancho de banda de la memoria y opera cerca de su techo. El 20~\% restante corresponde a la lectura del KV cache, que la Ecuación~\ref{eq:cap2:techo-decode} ignora, y al sobrecosto por paso del motor, que no se puede separar con estos datos. La desviación típica de 0,31~ms sobre 1695~ms de la Tabla~\ref{tab:cap3:estabilidad} implica que el TPOT se conoce con una incertidumbre inferior a 0,01~ms.
+
+El TPOT de 512 tokens de entrada no se obtuvo porque la ejecución con $L_{out}=129$ no se completó. Por tanto, el piloto no permite observar cómo crece el TPOT con el contexto, que es el efecto esperado de la lectura del KV cache.
+
+\subsection{Contraste entre fases}
+\label{sec:cap3:contraste}
+
+Los dos resultados anteriores cuantifican la asimetría que motiva el trabajo. Procesar los 128 tokens del prompt costó 17,09~ms, mientras que generar un único token costó 13,11~ms. En la práctica, el prefill procesó 128 tokens en un tiempo apenas un 30~\% mayor que el que el decode necesita para generar uno solo. La Tabla~\ref{tab:cap3:contraste} resume ambas fases frente a sus techos.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Comparación de las fases frente a sus techos teóricos ($L_{in}=128$, $B=1$).}
+  \label{tab:cap3:contraste}
+  \small
+  \begin{tabular}{|p{0.13\textwidth}|p{0.19\textwidth}|p{0.17\textwidth}|p{0.15\textwidth}|p{0.16\textwidth}|}
+    \hline
+    \textbf{Fase} & \textbf{Recurso limitante} & \textbf{Medido (tok/s)} & \textbf{Techo (tok/s)} & \textbf{Utilización} \\
+    \hline
+    Prefill & Cómputo & 7\,491 ($L_{in}=128$) \newline 13\,761 ($L_{in}=512$) & 19\,000 & MFU 39~\% \newline MFU 72~\% \\
+    \hline
+    Decode & Ancho de banda & 76,3 & 95 & MBU 80~\% \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Elaboración propia a partir del trabajo 30732 y de la Sección~\ref{sec:cap2:techos}}
+
+Las dos fases difieren en dos órdenes de magnitud en throughput por secuencia, como anticipaba el análisis de la Sección~\ref{sec:cap2:techos}. Con lote 1, el decode aprovecha una fracción mayor de su recurso limitante que el prefill de entradas cortas. Sin embargo, su throughput absoluto es 98 veces menor con 128 tokens y 180 veces menor con 512.
+
+\subsection{Telemetría de la GPU}
+\label{sec:cap3:telemetria}
+
+La GPU ocupó como máximo 36\,799~MiB, el 90~\% de su memoria, conforme al valor de \texttt{gpu\_memory\_utilization}. En reposo, con la memoria vacía, la potencia media fue de 55,2~W. La potencia máxima, 268~W, se registró durante el calentamiento y la medición de la configuración con 129 tokens de salida, que es la única que mantuvo la GPU ocupada durante más de unos segundos.
+
+La telemetría del trabajo 30732 no permite estimar la energía por token con la Ecuación~\ref{eq:cap2:etoken}. Con un muestreo cada 2~s, las mediciones de prefill, que duraron menos de medio segundo, no contienen ninguna muestra propia, y la de decode contiene unas ocho. Esta limitación motivó la reducción del periodo a 1~s en \texttt{a100\_qwen3\_8b.sh}. En E2, cuyos puntos duran varios minutos, ese periodo bastará para integrar la energía, pero en E1 seguirá siendo insuficiente.
+% PENDIENTE: valorar el contador de energía de NVML (nvmlDeviceGetTotalEnergyConsumption) para E1.
+
+\subsection{Alcance de los resultados piloto}
+\label{sec:cap3:alcance}
+
+Los resultados de esta sección validan el método de diferencia de latencias y los techos teóricos, pero tienen un alcance limitado. Proceden de un único trabajo en un único nodo, con lote 1, dos longitudes de entrada y una de salida. Además, solo aplican el primero de los tres métodos de triangulación, porque la fase en línea no llegó a ejecutarse. Las métricas de cliente y las de \texttt{/metrics}, que permitirían contrastarlos, corresponden a los experimentos E1 y E2.
 
 \section{Cronograma y Presupuesto}
+\label{sec:cap3:cronograma}
+% PENDIENTE: completar cuando se cierre la campaña.
 \textit{[Presentar la planificación de las fases de ejecución del proyecto y el detalle de los costos asociados a hardware, licencias, servicios u otros recursos.]}

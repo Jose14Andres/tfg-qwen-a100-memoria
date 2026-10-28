@@ -75,11 +75,11 @@ El planificador impone los límites recogidos en la Tabla~\ref{tab:cap2:slurm}. 
 \elaboradopor{José Andrés Ureta Granda}
 \fuente{Configuración de Slurm del clúster HPC CEDIA}
 
-Dos limitaciones adicionales afectan directamente a la validez de las mediciones de latencia. La primera es que los nodos son compartidos con otros usuarios y su carga de CPU varía durante la ejecución, como se detalla en la Sección~\ref{sec:cap2:control}. La segunda es que el driver de la GPU cambió durante la semana de preparación, según muestra la Tabla~\ref{tab:cap2:driver}. Este cambio indica que el clúster actualiza los drivers sin aviso previo, de modo que dos mediciones separadas por días pueden no ser comparables.
+Dos limitaciones adicionales afectan directamente a la validez de las mediciones de latencia. La primera es que los nodos son compartidos con otros usuarios y su carga de CPU varía durante la ejecución, como se detalla en la Sección~\ref{sec:cap2:control}. La segunda es que los nodos GPU no comparten la misma versión del driver, según muestra la Tabla~\ref{tab:cap2:driver}. Como el planificador asigna el nodo en cada trabajo, dos mediciones de la misma configuración pueden ejecutarse con drivers distintos y no ser directamente comparables.
 
 \begin{table}[htbp]
   \centering
-  \caption{Versión del driver NVIDIA observada en los nodos durante la preparación.}
+  \caption{Versión del driver NVIDIA observada en los nodos.}
   \label{tab:cap2:driver}
   \small
   \begin{tabular}{|p{0.20\textwidth}|p{0.40\textwidth}|p{0.25\textwidth}|}
@@ -90,7 +90,9 @@ Dos limitaciones adicionales afectan directamente a la validez de las mediciones
     \hline
     22 de octubre & \texttt{compute-0-2} & 575.51.03 \\
     \hline
-    24 de octubre & \texttt{compute-0-1} y \texttt{compute-0-2} & 575.51.03 \\
+    24 de octubre & \texttt{compute-0-1} (trabajo 30732) & 535.161.08 \\
+    \hline
+    27 de octubre & \texttt{compute-0-1} (trabajo 31157) & 535.161.08 \\
     \hline
   \end{tabular}
 \end{table}
@@ -140,7 +142,7 @@ El trabajo sigue un método experimental cuantitativo organizado en las tres fas
 
 Las restricciones de Slurm determinaron tres decisiones de diseño. La primera es la ejecución secuencial de las configuraciones: con un único trabajo simultáneo, no es posible paralelizarlas entre GPU. La segunda es la elección de la partición \texttt{gpu-dev} en lugar de \texttt{gpu}. El 24 de octubre, \texttt{sbatch -{}-test-only} estimaba en \texttt{gpu} un inicio para el 31 de octubre pese a haber GPU libres, mientras que en \texttt{gpu-dev} la estimación era inmediata; \texttt{gpu-dev} ofrece, además, 4 días de tiempo máximo de ejecución frente a 2.
 
-La tercera decisión es la reutilización del motor de inferencia. Arrancar vLLM tiene un costo fijo de decenas de segundos, que superó los 80~s en el peor caso observado, con el entorno virtual alojado en NFS. Reiniciar el motor para cada configuración multiplicaría ese costo por el número de configuraciones dentro de un único trabajo con tiempo limitado. Por ello, la fase en línea levanta el servidor una sola vez y recorre todas las configuraciones contra él.
+La tercera decisión es la reutilización del motor de inferencia. Arrancar vLLM con Qwen3-8B tiene un costo fijo elevado: en el trabajo 30732, la inicialización del motor tardó entre 4 y 24 minutos, dominada por la compilación con \texttt{torch.\allowbreak compile}, y cada ejecución completa costó entre 29 y 75 minutos, como detalla la Sección~\ref{sec:cap3:trabajo}. Reiniciar el motor para cada configuración multiplicaría ese costo por el número de configuraciones dentro de un único trabajo con tiempo limitado. Por ello, la fase en línea levanta el servidor una sola vez y recorre todas las configuraciones contra él.
 
 La medición se automatiza con el script \texttt{bench\_pd.sh}, que organiza cada trabajo en las cinco fases de la Tabla~\ref{tab:cap2:fases}. Se automatizó todo el recorrido en un único script porque cada trabajo de Slurm debe ser autosuficiente: el investigador no interviene entre fases, y cualquier paso manual introduciría variaciones no registradas. Cada fase deja sus salidas en un directorio propio del trabajo, \texttt{resultados/}\textit{jobid}\texttt{/}, de modo que toda medición queda asociada al identificador del trabajo que la produjo.
 
@@ -257,7 +259,7 @@ La contención del nodo es una variable de confusión, porque el TTFT y el TPOT 
 
 Como el usuario no puede reservar un nodo completo, la contención no puede eliminarse y se controla de tres formas. La primera es registrar \texttt{/proc/loadavg} al inicio de cada trabajo en \texttt{entorno.txt}, para que la carga quede asociada a cada medición. La segunda es el monitor de \texttt{nvidia-smi} descrito, que permite detectar intervalos de baja utilización atribuibles a la CPU. La tercera es ejecutar repeticiones suficientes para estimar la varianza y detectar ejecuciones contaminadas, en lugar de confiar en una medición única.
 
-El cambio de driver de la Tabla~\ref{tab:cap2:driver} se controla con el mismo principio de registro. Cada ejecución guarda la versión del driver vigente en el momento de medir en \texttt{entorno.txt}. La campaña definitiva deberá completarse dentro de una ventana sin actualizaciones del driver o, si eso no es posible, reportar el driver como covariable en el análisis. Definidos los instrumentos y sus controles, la Sección~\ref{sec:cap2:requerimientos} fija los requerimientos que debe cumplir el banco de pruebas que los integra.
+La diferencia de driver entre nodos de la Tabla~\ref{tab:cap2:driver} se controla con el mismo principio de registro. Cada ejecución guarda en \texttt{entorno.txt} el nodo y la versión del driver vigente en el momento de medir. La campaña definitiva deberá ejecutarse en un mismo nodo o, si el planificador no lo permite, reportar el driver como covariable en el análisis. Definidos los instrumentos y sus controles, la Sección~\ref{sec:cap2:requerimientos} fija los requerimientos que debe cumplir el banco de pruebas que los integra.
 
 \section{Requerimientos del Proyecto}
 \label{sec:cap2:requerimientos}
@@ -419,7 +421,7 @@ La justificación técnica parte de las tecnologías que fija el caso de estudio
 La versión 0.20.0 de vLLM no se eligió por preferencia, sino por una restricción del entorno. Las versiones posteriores distribuyen su stack compilado contra CUDA 13, y el clúster operaba con el driver 535 en el momento de la instalación. La compatibilidad de versiones menores de CUDA permite ejecutar runtimes 12.x sobre drivers 525 o superiores, pero exige un driver 580 o superior para CUDA 13, de modo que no cruza de la versión mayor 12 a la 13.\footnote{NVIDIA, \textit{CUDA Toolkit Release Notes}, tabla de versiones mínimas del driver para la compatibilidad de versiones menores, disponible en \url{https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/}; y \textit{CUDA Compatibility}, apartado de compatibilidad hacia adelante, disponible en \url{https://docs.nvidia.com/deploy/cuda-compatibility/forward-compatibility.html}. Consultado el 24 de octubre de 2026.} La versión 0.20.0 con CUDA runtime 12.9 es, por tanto, la más reciente ejecutable con aquel driver sin recurrir a la compatibilidad hacia adelante, el mecanismo de NVIDIA que permite ejecutar CUDA 13 sobre drivers anteriores en GPU de centro de datos mediante el paquete \texttt{cuda-compat}.
 % REVISAR: justificar por qué no se usó la compatibilidad hacia adelante (cuda-compat), que NVIDIA declara compatible con la rama 535, o valorar si permite una versión más reciente de vLLM
 
-La actualización posterior del driver a 575.51.03, recogida en la Tabla~\ref{tab:cap2:driver}, no invalida esta decisión. Ese driver sigue por debajo de 580, de modo que la compatibilidad de versiones menores tampoco permitiría ejecutar CUDA 13 con él. Mantener la versión congelada preserva, además, la comparabilidad con las ejecuciones ya realizadas.
+El driver 575.51.03 observado en \texttt{compute-0-2}, recogido en la Tabla~\ref{tab:cap2:driver}, no invalida esta decisión. Ese driver sigue por debajo de 580, de modo que la compatibilidad de versiones menores tampoco permitiría ejecutar CUDA 13 con él. Mantener la versión congelada preserva, además, la comparabilidad con las ejecuciones ya realizadas.
 
 vLLM selecciona FlashAttention-2~\cite{dao2024flashattention2} como backend de atención porque FlashAttention-3 está diseñada para explotar características de la arquitectura Hopper~\cite{shah2024flashattention3}, y la A100 pertenece a la arquitectura Ampere. FlashAttention reduce los accesos a la memoria de alto ancho de banda de la GPU durante el cálculo de la atención~\cite{dao2022flashattention}.
 Se trata de una limitación de la plataforma y no de una decisión del experimento. Se declara porque afecta al rendimiento absoluto de la fase de prefill, que es la más intensiva en la atención.
