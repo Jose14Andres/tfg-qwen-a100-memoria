@@ -8,7 +8,7 @@
 | Tutor | Andrés Xavier Rubio Proaño |
 | Institución | Universidad Tecnológica Indoamérica — Facultad de Ingenierías, Ingeniería en Tecnologías de la Información |
 | Modalidad | Trabajo de Integración Curricular |
-| Fecha de corte de este documento | 2026-10-24 |
+| Fecha de corte de este documento | 2026-10-28 |
 | Repositorio remoto | `https://github.com/Jose14Andres/tfg-qwen-a100-memoria.git` |
 
 Este documento registra todo lo trabajado hasta la fecha de corte: qué existe, en qué estado está y qué falta. La especificación completa del proyecto está en [`SPEC.md`](SPEC.md).
@@ -43,14 +43,16 @@ El trabajo mide ambas fases de **Qwen3-8B** servido con **vLLM** en una **NVIDIA
 | Plantilla y formato UTI | `uti_tfm.sty`, `main.tex` | Funcional; adaptado al nuevo formato institucional UTI (2026-10-22) y verificado contra la carpeta `Ingenieria_Tecnologias_Informacion_Nuevo_Formato/` (2026-10-24) |
 | Páginas preliminares | `Preliminares/` | Estructura lista; lectores, resumen y abstract sin redactar |
 | Capítulo I · Introducción | `Capítulos/01_Introducción.tex` | **Redactado completo** (~6 700 palabras), con las secciones de la plantilla UTI; sin `% FALTA CITA` pendientes (resueltos el 2026-10-24) |
-| Capítulo II · Metodología | `Capítulos/02_Metodología.tex` | **Redactado** (2026-10-24) en las siete secciones de la plantilla; sin `% FALTA CITA` (resueltos el 2026-10-24); 1 `% REVISAR` sobre la compatibilidad hacia adelante de CUDA |
-| Capítulos III–IV | `Capítulos/03_*.tex`, `04_*.tex` | Texto guía y ejemplos de la plantilla; la línea 74 del Capítulo III cita `img:ejemplo_1` y `eq:disponibilidad`, eliminados del Capítulo II (referencias sin definir) |
+| Capítulo II · Metodología | `Capítulos/02_Metodología.tex` | **Redactado** (2026-10-24) en las siete secciones de la plantilla; sin `% FALTA CITA`. Corregido el 2026-10-28 con los registros de la A100: tabla de drivers (los nodos difieren; no hubo actualización) y costo de arranque de vLLM (minutos, no segundos). Queda 1 `% REVISAR` sobre la compatibilidad hacia adelante de CUDA |
+| Capítulo III · Implementación | `Capítulos/03_Implementación.tex` | **Redactado con el piloto 30732** (2026-10-28): proceso, pruebas y resultados de prefill y decode con lote 1 (ver §5.4). Pendientes: E1/E2, cronograma y presupuesto; 1 `% REVISAR` (fin del trabajo 30732) y 3 `% PENDIENTE`. Se quitaron los ejemplos de la plantilla y ya no hay referencias sin definir |
+| Capítulo IV · Conclusiones | `Capítulos/04_*.tex` | Texto guía de la plantilla |
 | Referencias | `referencias_1.bib` (en uso) | 19 entradas verificadas (8 añadidas el 2026-10-24: survey de LLM, BF16, PaLM/MFU, Databricks/MBU, Slurm, PEP 600, FlashAttention-2 y FlashAttention-3); las 19 se citan y resuelven. La documentación de software (vLLM, NVML, CUDA, glibc, patchelf) va en notas al pie. `referencias.bib` conserva las 6 entradas de ejemplo |
 | Glosario y anexos | `Capítulos/06_Glosario.tex`, `Anexos/01_Anexo.tex` | Texto guía de la plantilla |
 | Modelo de datos | `docs/modelo_datos/` | Documento completo (652 líneas, PDF generado) |
-| Banco de pruebas | `experimentos/` | Base implementada (configuración, esquemas, prompts, entorno); 27 pruebas pasan |
+| Banco de pruebas | `experimentos/` | Base implementada (configuración, esquemas, prompts, entorno); 27 pruebas pasan. La copia del clúster está por delante: tiene `tfgbench ejecutar` (ver §5.3) |
 | Manuales de la plantilla | `manual/` | Material de la plantilla institucional (uso y diseño) |
-| Campaña experimental | — | No iniciada (falta acceso a la A100) |
+| Resultados de la A100 | `Pruebas_Jose_Ureta_Tesis/` | Copia local de scripts, configuraciones y resultados del clúster; **sin versionar** |
+| Campaña experimental | HPC CEDIA | Piloto 30732 completado en parte (2026-10-24); E1 y E2 sin ejecutar: los trabajos 31157 y 31299 fallaron por infraestructura (ver §5.4) |
 
 ---
 
@@ -104,7 +106,7 @@ Reescrito el 2026-10-21 como ensayo argumentativo y reestructurado el 2026-10-24
 | pdfLaTeX | `latexmk -pdf main.tex` | Compila sin errores; usa TeX Gyre Adventor como fuente sustituta |
 | XeLaTeX | `latexmk -xelatex main.tex` | Falla: la fuente Century Gothic no está instalada |
 
-El último `main.pdf` se generó con pdfLaTeX (MiKTeX) el 2026-10-24, sin citas sin definir, y se versiona en git. Quedan dos referencias cruzadas sin definir en el texto guía del Capítulo III. Si la universidad exige Century Gothic real, hay que instalar la fuente y compilar con XeLaTeX.
+El último `main.pdf` se generó con pdfLaTeX (MiKTeX) el 2026-10-28, sin citas ni referencias cruzadas sin definir, y se versiona en git. Si la universidad exige Century Gothic real, hay que instalar la fuente y compilar con XeLaTeX.
 
 ---
 
@@ -171,14 +173,40 @@ python -m pytest                                       # pruebas
 
 ### 5.3 Pendiente (respecto a SPEC §11–12)
 
-| Requerimiento | Falta |
+En el clúster (`~/tfg-jose-ureta`) ya existe un comando `tfgbench ejecutar` que lee configuraciones TOML y ejecuta un barrido en bucle cerrado contra un `vllm serve`, y el script `a100_qwen3_8b.sh` cubre el arranque con `/health`, la telemetría con `nvidia-smi` y la descarga de `/metrics`. **Ese código no está en este repositorio**: hay que traerlo antes de dar por cubiertos RF1 y RF3–RF6.
+
+| Requerimiento | Falta en este repositorio |
 |---|---|
-| RF1 | Arranque y parada de vLLM con verificación de `/health` |
-| RF3 | Clientes de carga *offline* (lotes fijos) y *online* (llegadas Poisson, streaming) |
+| RF1 | Arranque y parada de vLLM con verificación de `/health` (existe en `a100_qwen3_8b.sh`) |
+| RF3 | Clientes de carga *offline* (lotes fijos) y *online* (llegadas Poisson, streaming); en el clúster solo hay bucle cerrado |
 | RF4 | Registro de tiempos por petición y por token |
-| RF5 | Telemetría de GPU (`nvidia-smi`/DCGM) y métricas Prometheus de vLLM |
+| RF5 | Telemetría de GPU (`nvidia-smi`/DCGM) y métricas Prometheus de vLLM (existe en `a100_qwen3_8b.sh`) |
 | RF6 | Orquestador (*runner*) que ejecute la matriz y persista las corridas |
 | RF7 | Análisis: consolidación, ajuste de modelos, cotas roofline y figuras para LaTeX |
+
+### 5.4 Trabajos en la A100 (HPC CEDIA)
+
+Entorno común: A100-SXM4-40GB completa, driver 535.161.08 en `compute-0-1`, vLLM 0.20.0, PyTorch 2.11.0+cu129, Qwen3-8B BF16. Se ejecuta con la cuenta `andres.rubio`; la QoS permite un solo trabajo a la vez.
+
+| Trabajo | Fecha | Qué era | Resultado |
+|---|---|---|---|
+| 30732 | 2026-10-24 | `bench_pd.sh`, fases 0–2 (`vllm bench latency`, lote 1) | 3 de 4 configuraciones medidas; la de `L_in`=512, `L_out`=129 quedó incompleta. Fuente de los datos del Capítulo III |
+| piloto MIG | 2026-10-27 | Qwen3-0.6B en MIG, cliente `tfgbench` | Valida el cliente; no entra en la tesis |
+| 31157 | 2026-10-27 | `a100_qwen3_8b.sh` (E1 + E2) | Falló: ~17 min antes del primer registro y `vllm serve` sin responder en 45 min, con `serve.log` vacío |
+| 31299 | 2026-10-28 | `salloc` interactivo en `compute-0-2` | La shell se colgó (carga ~165). Hipótesis sin confirmar: `spack load hwloc` en `~/.bashrc` (ver `Pruebas_Jose_Ureta_Tesis/diagnostico_31299.md`) |
+
+**Resultados del trabajo 30732** (redactados en el Capítulo III):
+
+| Medida | Valor |
+|---|---|
+| TTFT con 128 / 512 tokens | 17,09 / 37,21 ms (CV < 0,6 %) |
+| Throughput de prefill (MFU) | 7 491 tok/s (39 %) / 13 761 tok/s (72 %) |
+| TPOT con 128 tokens de entrada | 13,11 ms = 76,3 tok/s; MBU ≈ 80 % (techo 95 tok/s) |
+| KV cache disponible | 16,32 GiB = 118 832 tokens (confirma 144 KiB/token) |
+| Concurrencia máxima con 8192 tokens | 14,51 (< 16): **la configuración 8192 × 16 de la ficha no cabe** |
+| Costo por ejecución | Inicialización del motor de 4–24 min (`torch.compile`); de 29 a 75 min por ejecución, frente a < 18 s de medición |
+
+Consecuencias: un solo `vllm serve` por trabajo (`a100_qwen3_8b.sh`), E1 limitado a 7680 tokens y periodo de telemetría de 1 s. El muestreo cada 2 s no permite estimar la energía por token en el prefill.
 
 ---
 
@@ -186,11 +214,12 @@ python -m pytest                                       # pruebas
 
 | Rama | Commit | Contenido |
 |---|---|---|
-| `main` | `de488ce` | Incluye los PR #1 y #2 (Capítulo I) y los PR #3–#5 (nuevo formato UTI, citas y redacción del Capítulo II) |
-| `docs/nuevo-formato-uti` | último commit | Fusionada en `main` hasta `c2c5298`; contiene además la reestructuración del Capítulo I según la plantilla UTI, **pendiente de subir y fusionar** |
+| `main` | — | Incluye los PR #1–#5 y la reestructuración del Capítulo I y los `FALTA CITA` de los Capítulos I y II |
+| `docs/nuevo-formato-uti` | `4bad038` + este documento | Un commit por delante de `main` (Capítulo III y correcciones del Capítulo II); subida a `origin`, **PR pendiente de abrir** (en este equipo no está instalado `gh`) |
 | `docs/main-tex-datos-tesis` | `7e478af` | Ya fusionada en `main`; puede borrarse |
 
-- Las ramas están sincronizadas con `origin`, salvo el último commit de `docs/nuevo-formato-uti`.
+- Las ramas están sincronizadas con `origin`.
+- `Pruebas_Jose_Ureta_Tesis/` no se versiona todavía; falta decidir si se añade al repositorio o al `.gitignore`.
 - Ya se versionan `SPEC.md`, `docs/modelo_datos/`, `experimentos/` (sin `.venv/`), `CLAUDE.md`, este archivo y `main.pdf`.
 - Ignorados por `.gitignore`: auxiliares de LaTeX, `tmp_*`, `uploads/`, `prism-uploads/`, entorno y cachés de Python, e `informacion-tesis*.txt` (contiene correos de terceros).
 
@@ -198,24 +227,27 @@ python -m pytest                                       # pruebas
 
 ## 7. Decisiones abiertas (SPEC §16)
 
-1. Variante de la A100 (40/80 GB, PCIe/SXM) y proveedor de acceso.
-2. Versión exacta de vLLM.
+1. ~~Variante de la A100 y proveedor de acceso~~ → **resuelta**: A100-SXM4-40GB del HPC CEDIA.
+2. ~~Versión exacta de vLLM~~ → **resuelta**: 0.20.0+cu129 (Capítulo II, §Versiones y backend de atención).
 3. SLO para el goodput (umbrales de TTFT y TPOT).
 4. Inclusión o no de un punto de comparación con cuantización.
 5. Ubicación del código experimental (este repositorio o uno separado).
 6. Línea/sublínea de investigación definitiva y título en inglés (ya hay valores propuestos en `main.tex`; falta la confirmación del tutor).
 7. Metas de error definitivas (CA2–CA4).
+8. **Nueva:** qué nivel sustituye a la configuración 8192 × 16 de la ficha, que no cabe en la A100 de 40 GB con `gpu_memory_utilization` 0,90.
 
 ---
 
 ## 8. Próximos pasos
 
-1. Cerrar con el tutor las decisiones abiertas, en especial el acceso a la A100 y la línea de investigación.
-2. Subir `docs/nuevo-formato-uti` y fusionar en `main` la reestructuración del Capítulo I.
-3. Unificar la bibliografía: dejar un único `.bib` y alinear `CLAUDE.md` con `Capítulos/05_Referencias.tex`.
-4. Valorar si se añaden Splitwise y LLM-Viewer al estado del arte.
-5. Resolver el `% REVISAR` del Capítulo II: justificar por qué no se usó la compatibilidad hacia adelante de CUDA (`cuda-compat`), que NVIDIA declara compatible con la rama 535, o valorar si permite una versión más reciente de vLLM.
-6. Completar el banco de pruebas (RF1, RF3–RF7) y ejecutar la corrida piloto.
-7. Ejecutar la campaña E1–E5, ajustar y validar los modelos, y redactar los Capítulos III–IV.
-8. Completar las páginas preliminares (lectores, resumen y abstract), el glosario y los anexos.
-9. Actualizar el `README.md`, que solo documenta la compilación con `latexmk -pdf`.
+1. **Desbloquear la campaña**: comparar `time bash -c 'echo ok'` con `time bash --norc -c 'echo ok'` en el clúster. Si spack es la causa, cargarlo solo en shells interactivas; si no, relanzar `a100_qwen3_8b.sh` excluyendo los nodos cargados.
+2. Ejecutar E1 y E2 y completar con ellos el Capítulo III; confirmar con `sacct -j 30732` cómo terminó el piloto.
+3. Abrir y fusionar el PR de `docs/nuevo-formato-uti`.
+4. Traer al repositorio el código del clúster (`tfgbench ejecutar`, `a100_qwen3_8b.sh`, `resumen_pd.py`, `configs/`) y decidir qué hacer con `Pruebas_Jose_Ureta_Tesis/`.
+5. Cerrar con el tutor las decisiones abiertas, en especial la línea de investigación y el sustituto del nivel 8192 × 16.
+6. Unificar la bibliografía: dejar un único `.bib` y alinear `CLAUDE.md` con `Capítulos/05_Referencias.tex`.
+7. Valorar si se añaden Splitwise y LLM-Viewer al estado del arte.
+8. Resolver el `% REVISAR` del Capítulo II: justificar por qué no se usó la compatibilidad hacia adelante de CUDA (`cuda-compat`), que NVIDIA declara compatible con la rama 535, o valorar si permite una versión más reciente de vLLM.
+9. Completar el banco de pruebas en este repositorio (RF3, RF4, RF6, RF7) y la campaña E3–E5; ajustar y validar los modelos y redactar el Capítulo IV.
+10. Completar las páginas preliminares (lectores, resumen y abstract), el glosario y los anexos.
+11. Actualizar el `README.md`, que solo documenta la compilación con `latexmk -pdf`.
