@@ -191,9 +191,11 @@ Entorno común: A100-SXM4-40GB completa, driver 535.161.08 en `compute-0-1`, vLL
 | Trabajo | Fecha | Qué era | Resultado |
 |---|---|---|---|
 | 30732 | 2026-10-24 | `bench_pd.sh`, fases 0–2 (`vllm bench latency`, lote 1) | 3 de 4 configuraciones medidas; la de `L_in`=512, `L_out`=129 quedó incompleta. Fuente de los datos del Capítulo III |
-| piloto MIG | 2026-10-27 | Qwen3-0.6B en MIG, cliente `tfgbench` | Valida el cliente; no entra en la tesis |
+| piloto MIG | 2026-10-27 | Qwen3-0.6B en MIG, cliente `tfgbench` | Cuatro puntos online completados (8 peticiones por punto); valida el cliente, pero el modelo, el MIG y el tamaño de muestra no sirven como resultados de la tesis |
 | 31157 | 2026-10-27 | `a100_qwen3_8b.sh` (E1 + E2) | Falló: ~17 min antes del primer registro y `vllm serve` sin responder en 45 min, con `serve.log` vacío |
 | 31299 | 2026-10-28 | `salloc` interactivo en `compute-0-2` | La shell se colgó (carga ~165). Hipótesis sin confirmar: `spack load hwloc` en `~/.bashrc` (ver `Pruebas_Jose_Ureta_Tesis/diagnostico_31299.md`) |
+
+**Resultados del piloto MIG (solo validación del cliente):** cuatro combinaciones online, cada una con 8 peticiones. Con entrada/salida 128/128 y concurrencia 1/4, TTFT p50 fue 18,9/51,3 ms, TPOT p50 8,3/9,7 ms y throughput total 237,1/801,0 tok/s. Con entrada 1024, salida 128 y concurrencia 1/4, TTFT p50 fue 57,6/183,9 ms, TPOT p50 8,9/12,4 ms y throughput total 968,2/2599,8 tok/s. No hay captura de entorno ni métricas Prometheus en el resumen disponible; estos datos no se usan para modelar ni para inferir rendimiento de Qwen3-8B en la A100 completa. Fuente: `Pruebas_Jose_Ureta_Tesis/piloto-mig-0.6b-20261027-155013/RESUMEN.md`.
 
 **Resultados del trabajo 30732** (redactados en el Capítulo III):
 

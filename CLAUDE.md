@@ -3,7 +3,7 @@
 ## Citación y bibliografía
 
 - **Estilo de citación: IEEE numérico** (confirmado por el tutor). No usar autor-año ni otros estilos.
-- Estilo BibTeX: `\bibliographystyle{IEEEtran}` con `\bibliography{referencias}`, definido en `Capítulos/05_Referencias.tex`.
-- Base bibliográfica: `referencias.bib`.
+- Estilo BibTeX: `\bibliographystyle{IEEEtran}` con `\bibliography{referencias_1}`, definido en `Capítulos/05_Referencias.tex`.
+- Base bibliográfica: `referencias_1.bib` (la única que carga la memoria).
 - Citar con `\cite{clave}`; para varias fuentes, agruparlas en una sola llamada: `\cite{a,b}` → [1], [2].
-- Citar únicamente claves que existan en `referencias.bib`. Si falta una fuente, dejar `% FALTA CITA: <qué haría falta>` en lugar de inventar la clave.
+- Citar únicamente claves que existan en `referencias_1.bib`. Si falta una fuente, dejar `% FALTA CITA: <qué haría falta>` en lugar de inventar la clave.
