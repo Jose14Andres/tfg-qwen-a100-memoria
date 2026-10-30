@@ -1,0 +1,2 @@
+# Los scripts del clúster deben conservar saltos de línea LF
+*.sh text eol=lf
