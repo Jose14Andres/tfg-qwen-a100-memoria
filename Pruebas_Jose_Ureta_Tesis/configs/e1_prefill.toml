@@ -1,0 +1,26 @@
+# E1 — Prefill: TTFT frente a la longitud de entrada, con 1 usuario (sin colas ni lotes).
+# 7 puntos x (30 medidas + 3 de calentamiento). Lo lanza tesis/a100_qwen3_8b.sh; la URL y el directorio los pone el script.
+
+[servidor]
+url_base = "http://127.0.0.1:8000"
+modelo = "Qwen/Qwen3-8B"
+timeout_s = 600
+
+[tokenizer]
+id = "Qwen/Qwen3-8B"
+revision = "b968826d9c46dd6066d109eabc6255188de91218"   # el snapshot de hf-cache
+solo_local = true
+
+[carga]
+longitudes_entrada = [128, 256, 512, 1024, 2048, 4096, 7680]   # 7680 + 128 <= max_model_len 8192
+longitudes_salida = [128]
+concurrencias = [1]
+num_solicitudes = 30
+num_calentamiento = 3
+semilla = 0
+temperatura = 0.0
+ignore_eos = true
+
+[salida]
+directorio = "../resultados"
+etiqueta = "e1-prefill"

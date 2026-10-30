@@ -1,0 +1,26 @@
+# E2 — Decode por lotes: TPOT/ITL y throughput frente a la concurrencia, con entrada 1024 y salida 256 fijas.
+# 7 puntos x (256 medidas + 4 de calentamiento). Con c=64 la caché KV ocupa ~64 x 1280 x 144 KiB = 11,3 GiB: cabe sin expulsiones.
+
+[servidor]
+url_base = "http://127.0.0.1:8000"
+modelo = "Qwen/Qwen3-8B"
+timeout_s = 600
+
+[tokenizer]
+id = "Qwen/Qwen3-8B"
+revision = "b968826d9c46dd6066d109eabc6255188de91218"
+solo_local = true
+
+[carga]
+longitudes_entrada = [1024]
+longitudes_salida = [256]
+concurrencias = [1, 2, 4, 8, 16, 32, 64]
+num_solicitudes = 256
+num_calentamiento = 4
+semilla = 0
+temperatura = 0.0
+ignore_eos = true
+
+[salida]
+directorio = "../resultados"
+etiqueta = "e2-concurrencia"

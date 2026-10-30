@@ -26,7 +26,10 @@ El caso seleccionado combina el modelo Qwen3-8B, perteneciente a la familia Qwen
 \section{Estado del Arte}
 \label{sec:cap1:estado-arte}
 
-La distinción entre prefill y decode, presentada en la sección anterior, atraviesa la literatura sobre inferencia de LLM. Esa literatura se concentra en mecanismos de sistema orientados a aprovechar mejor la GPU: la planificación de solicitudes, la gestión de memoria, los kernels de atención, el tratamiento diferenciado de las fases y la cuantización. Esta sección revisa seis trabajos representativos de esas líneas y señala, en cada caso, qué aportan a la pregunta central y qué dejan abierto.
+La distinción entre prefill y decode, presentada en la sección anterior, atraviesa la literatura sobre inferencia de LLM. Esa literatura se concentra en mecanismos de sistema orientados a aprovechar mejor la GPU: la planificación de solicitudes, la gestión de memoria, los kernels de atención, el tratamiento diferenciado de las fases y la cuantización. La Sección~\ref{sec:cap1:mecanismos} revisa seis trabajos representativos de esas líneas y señala, en cada caso, qué aportan a la pregunta central y qué dejan abierto. La Sección~\ref{sec:cap1:servidores} examina cómo esos mecanismos se integran en los sistemas que sirven los modelos a los usuarios, y la Sección~\ref{sec:cap1:posicionamiento} sintetiza la comparación y sitúa el presente trabajo frente a ella.
+
+\subsection{Mecanismos de sistema para la inferencia}
+\label{sec:cap1:mecanismos}
 
 Yu et al.~\cite{yu2022orca} proponen Orca, un motor de inferencia que planifica la ejecución a nivel de iteración en lugar de a nivel de solicitud. Con esta estrategia, el sistema incorpora solicitudes nuevas al lote y retira las finalizadas en cada paso de generación. Orca reserva, sin embargo, el espacio del KV cache de cada solicitud en bloques contiguos dimensionados de antemano, y esa reserva desperdicia una parte de la memoria disponible~\cite{kwon2023pagedattention}. La planificación por iteración mejora así el aprovechamiento del cómputo, mientras deja abierto el de la memoria.
 
@@ -40,35 +43,70 @@ Zhong et al.~\cite{zhong2024distserve} llevan la separación más lejos con Dist
 
 Lin et al.~\cite{lin2024awq} proponen AWQ, un método de cuantización de solo pesos a baja precisión que protege los pesos más relevantes a partir de la distribución de las activaciones. La representación de los pesos con 4 bits (AWQ INT4) reduce la memoria ocupada por el modelo frente al formato de coma flotante de 16 bits BF16. La memoria que libera la cuantización queda disponible para el KV cache, de modo que la representación numérica puede alterar el comportamiento de ambas fases. Por esa razón, este TFG compara las dos representaciones numéricas.
 
-La Tabla~\ref{tab:cap1:estado-arte} resume el aporte, la limitación principal y la relación de cada trabajo con el presente TFG. Los seis trabajos proponen o evalúan mecanismos de sistema, y ninguno caracteriza la combinación de Qwen3-8B, A100 y vLLM. Todos ellos son, además, anteriores a la publicación de la familia Qwen3~\cite{qwen2025qwen3}.
+\subsection{Sistemas de servicio de modelos de lenguaje}
+\label{sec:cap1:servidores}
+
+Los trabajos anteriores proponen mecanismos que, en la práctica, no operan de forma aislada: se integran en un servidor de inferencia, el sistema que recibe las solicitudes de los usuarios, decide cuándo y con qué recursos se atiende cada una y devuelve los tokens generados. Ejecutar el modelo directamente desde una biblioteca de aprendizaje profundo resuelve el cálculo de una solicitud, pero no las exigencias de latencia y throughput de un servicio que atiende a muchos usuarios; los sistemas de inferencia especializados surgen para cubrir esa distancia~\cite{aminabadi2022deepspeed}. Tres funciones distinguen a un servidor de inferencia de la ejecución directa: la planificación de las peticiones, el agrupamiento de las solicitudes concurrentes y la gestión de la memoria que ocupa el KV cache.
+
+La planificación determina en qué orden y en qué momento se atiende cada petición. La latencia que percibe un usuario no depende solo del tiempo de cálculo de su solicitud, sino también del tiempo que espera hasta ser atendida y de las solicitudes con las que comparte la GPU. Por ello, la manera en que el servidor planifica y agrupa las peticiones condiciona directamente la latencia del servicio~\cite{li2023alpaserve}. Esa dependencia explica que el TTFT incluya, en un servidor con carga, el tiempo de espera en cola, como precisa la Sección~\ref{sec:cap1:metricas}.
+
+El agrupamiento de solicitudes concurrentes se apoya en la asimetría entre las dos fases: prefill está limitado por el cómputo, mientras que decode está limitado por el ancho de banda de memoria~\cite{pope2023scaling}. Como cada paso de decode lee todos los pesos del modelo para producir un solo token por solicitud, reunir varias solicitudes en un mismo paso reparte esa lectura entre ellas. La forma de reunirlas es decisiva. El agrupamiento estático forma un lote y lo mantiene hasta que terminan todas sus solicitudes: las que finalizan antes dejan su espacio sin usar, y las que llegan después esperan al lote siguiente~\cite{yu2022orca}. El agrupamiento continuo, introducido por Orca~\cite{yu2022orca}, recompone el lote en cada iteración del modelo, de modo que incorpora solicitudes nuevas en cuanto hay capacidad y retira las finalizadas sin esperar al resto. La contrapartida es que prefill y decode conviven en el mismo lote e interfieren entre sí~\cite{agrawal2024sarathi}; el mecanismo que mejora el aprovechamiento de la GPU es, por tanto, el mismo que complica la medición separada de las fases.
+
+Con el agrupamiento continuo, la concurrencia deja de ser un dato fijo de la carga y se convierte en una variable que el planificador gestiona activamente: decide cuántas solicitudes admite, cuáles aplaza y cómo redistribuye los recursos cuando escasean~\cite{sun2024llumnix}. Para este trabajo, esa gestión obliga a interpretar con cuidado el nivel de concurrencia. El benchmark fija el número de solicitudes simultáneas que se envían al servidor, pero el número de solicitudes que el motor procesa en cada iteración depende de su planificador y de la memoria disponible.
+
+La gestión de la memoria del KV cache es la tercera función, y está acoplada a las dos anteriores. Una reserva contigua dimensionada de antemano, como la de Orca, desperdicia memoria y limita el número de solicitudes que caben en la GPU~\cite{kwon2023pagedattention}. La gestión paginada de vLLM asigna el KV cache en bloques de tamaño fijo a medida que crece cada secuencia~\cite{kwon2023pagedattention}, con el funcionamiento que detalla la Sección~\ref{sec:cap1:vllm}. Su consecuencia para el servicio es que la memoria libre, y no una reserva fija por solicitud, determina cuántas solicitudes pueden agruparse. Planificación, agrupamiento y memoria quedan así ligados entre sí, y los tres dependen de la longitud de contexto y de la concurrencia, dos de los factores que este trabajo hace variar.
+
+vLLM no es el único sistema que combina estas funciones. Entre las alternativas figura SGLang~\cite{zheng2024sglang}, y los propios Sarathi-Serve y DistServe, revisados en la Sección~\ref{sec:cap1:mecanismos}, son motores de inferencia completos. % FALTA CITA: fuentes primarias de servidores de uso industrial (p. ej., Text Generation Inference o TensorRT-LLM), si se desea ampliar el panorama de alternativas a vLLM.
+La elección de vLLM en este trabajo responde a cuatro razones. La primera es que la ficha institucional lo fija como el componente de software $S$ de la configuración experimental. La segunda es que integra en un mismo motor la gestión paginada del KV cache, el agrupamiento continuo y el chunked prefill, que son precisamente los mecanismos cuya interacción con las fases se pretende observar. La tercera es que expone esos mecanismos mediante parámetros de configuración, descritos en la Sección~\ref{sec:cap1:vllm}, lo que permite controlarlos y documentarlos. La cuarta es que su código abierto permite fijar y citar la versión exacta empleada, condición de la reproducibilidad. Comparar vLLM con otros motores queda, por su parte, fuera del alcance, como establece la Sección~\ref{sec:cap1:delimitaciones}.
+
+\subsection{Síntesis comparativa y posicionamiento}
+\label{sec:cap1:posicionamiento}
+
+La Tabla~\ref{tab:cap1:estado-arte} resume, para cada trabajo citado, el sistema o modelo evaluado, el hardware empleado, si separa las fases prefill y decode, las métricas que reporta y su limitación para el presente TFG; su última fila describe el diseño de este trabajo. Ninguno de los trabajos revisados caracteriza la combinación de Qwen3-8B, A100 y vLLM, y todos ellos son anteriores a la publicación de la familia Qwen3~\cite{qwen2025qwen3}.
 
 \begin{table}[htbp]
   \centering
   \caption{Comparación de los trabajos revisados en el estado del arte.}
   \label{tab:cap1:estado-arte}
-  \small
-  \begin{tabular}{|p{0.17\textwidth}|p{0.23\textwidth}|p{0.23\textwidth}|p{0.23\textwidth}|}
+  \footnotesize
+  \setlength{\tabcolsep}{3pt}
+  % Las celdas usan \RaggedRight (ragged2e, ya cargado por uti_tfm.sty) y las
+  % filas terminan en \tabularnewline porque \RaggedRight redefine \\.
+  % VERIFICAR: modelos, hardware y métricas de cada fila proceden de la lectura
+  % de los artículos, no de ningún archivo del repositorio; contrastarlos con
+  % la sección de evaluación de cada uno antes de la entrega.
+  \begin{tabular}{|p{0.12\textwidth}|p{0.06\textwidth}|p{0.15\textwidth}|p{0.12\textwidth}|p{0.13\textwidth}|p{0.15\textwidth}|p{0.15\textwidth}|}
     \hline
-    \textbf{Trabajo} & \textbf{Aporte principal} & \textbf{Limitación principal} & \textbf{Relación con el TFG} \\
+    \RaggedRight\textbf{Trabajo} & \RaggedRight\textbf{Año} & \RaggedRight\textbf{Sistema o modelo evaluado} & \RaggedRight\textbf{Hardware} & \RaggedRight\textbf{¿Separa prefill y decode?} & \RaggedRight\textbf{Métricas reportadas} & \RaggedRight\textbf{Limitación para este TFG} \tabularnewline
     \hline
-    Orca~\cite{yu2022orca} & Planificación a nivel de iteración & Reserva contigua del KV cache & Origen del batching continuo de vLLM \\
+    \RaggedRight Flash\-Attention \cite{dao2022flashattention} & 2022 & \RaggedRight Kernel de atención; entrenamiento de BERT y GPT-2 & \RaggedRight GPU A100 & \RaggedRight No aplica: optimiza un kernel & \RaggedRight Tiempo de ejecución y memoria & \RaggedRight Optimiza un cálculo aislado, no el servicio \tabularnewline
     \hline
-    vLLM~\cite{kwon2023pagedattention} & Gestión paginada del KV cache & No separa el análisis por fases & Motor de inferencia del TFG \\
+    \RaggedRight Orca \cite{yu2022orca} & 2022 & \RaggedRight Motor Orca; modelos de la familia GPT-3 & \RaggedRight Varias GPU A100 & \RaggedRight No: ambas fases en el mismo lote & \RaggedRight Latencia y throughput & \RaggedRight Reserva contigua del KV cache \tabularnewline
     \hline
-    FlashAttention \cite{dao2022flashattention} & Atención exacta con menos accesos a memoria & Optimiza un kernel aislado & Interpretación de cuellos de botella \\
+    \RaggedRight Pope et al. \cite{pope2023scaling} & 2023 & \RaggedRight Inferencia de PaLM & \RaggedRight TPU v4 & \RaggedRight Sí, en el análisis: prefill limitado por cómputo, decode por memoria & \RaggedRight Latencia y MFU & \RaggedRight Otro acelerador; modelo repartido entre muchos chips \tabularnewline
     \hline
-    Sarathi-Serve~\cite{agrawal2024sarathi} & Chunked prefill sin detener decode & Mezcla ambas fases en un mismo lote & Condiciona la medición por fases \\
+    \RaggedRight vLLM \cite{kwon2023pagedattention} & 2023 & \RaggedRight Motor vLLM; modelos OPT y LLaMA & \RaggedRight GPU A100 & \RaggedRight No & \RaggedRight Throughput a latencia normalizada & \RaggedRight Evaluación agregada, sin desglose por fases \tabularnewline
     \hline
-    DistServe~\cite{zhong2024distserve} & Separación de prefill y decode en GPU distintas & Requiere varias GPU & Define TTFT y TPOT por fase \\
+    \RaggedRight AWQ \cite{lin2024awq} & 2024 & \RaggedRight Cuantización de pesos; modelos LLaMA y OPT & \RaggedRight GPU de escritorio y embebidas & \RaggedRight No & \RaggedRight Perplejidad, precisión y aceleración & \RaggedRight No mide el efecto por fases bajo carga concurrente \tabularnewline
     \hline
-    AWQ~\cite{lin2024awq} & Cuantización de pesos a 4 bits & Posible degradación de calidad & Representación AWQ INT4 evaluada \\
+    \RaggedRight Sarathi-Serve \cite{agrawal2024sarathi} & 2024 & \RaggedRight Motor Sarathi-Serve; varias familias de modelos & \RaggedRight GPU A100 y A40 & \RaggedRight En parte: distingue las fases, pero las mezcla en el lote & \RaggedRight TTFT, latencia entre tokens y capacidad & \RaggedRight La mezcla de fases condiciona su medición separada \tabularnewline
+    \hline
+    \RaggedRight DistServe \cite{zhong2024distserve} & 2024 & \RaggedRight Motor DistServe; modelos OPT & \RaggedRight Varias GPU A100 & \RaggedRight Sí: GPU distintas para cada fase & \RaggedRight TTFT, TPOT y goodput & \RaggedRight Requiere varias GPU \tabularnewline
+    \hline
+    \RaggedRight SGLang \cite{zheng2024sglang} & 2024 & \RaggedRight Motor SGLang, alternativo a vLLM & \RaggedRight GPU A10G y A100 & \RaggedRight No & \RaggedRight Throughput y latencia & \RaggedRight Comparar motores queda fuera del alcance \tabularnewline
+    \hline
+    \RaggedRight Splitwise \cite{patel2024splitwise} & 2024 & \RaggedRight Separación de fases; modelos BLOOM y LLaMA-2 & \RaggedRight Servidores DGX-A100 y DGX-H100 & \RaggedRight Sí: máquinas distintas para cada fase & \RaggedRight TTFT, latencia entre tokens, throughput, potencia y costo & \RaggedRight Requiere un clúster de varias máquinas \tabularnewline
+    \hline
+    \RaggedRight\textbf{Este TFG} & \textbf{2026} & \RaggedRight Qwen3-8B en BF16 y AWQ INT4, servido con vLLM; controla longitud de entrada, longitud de salida y concurrencia & \RaggedRight Una única GPU A100 (variante documentada) & \RaggedRight Sí: ambas fases comparten una sola GPU & \RaggedRight TTFT, TPOT, throughput, latencia total, memoria máxima, utilización, potencia media y energía estimada por token & \RaggedRight Validez limitada a Qwen3-8B, A100 y vLLM; energía estimada por telemetría \tabularnewline
     \hline
   \end{tabular}
+  \elaboradopor{José Andrés Ureta Granda}
+  \fuente{Elaboración propia}
 \end{table}
-\elaboradopor{José Andrés Ureta Granda}
-\fuente{Elaboración propia}
 
-La literatura revisada explica, por tanto, por qué prefill y decode se comportan de forma distinta, pero no ofrece una caracterización experimental de ambas fases para el caso seleccionado. La Sección~\ref{sec:cap1:planteamiento} examina las consecuencias de ese vacío para quien debe configurar el servicio.
+La última fila de la Tabla~\ref{tab:cap1:estado-arte} plantea una objeción inmediata. DistServe~\cite{zhong2024distserve} y Splitwise~\cite{patel2024splitwise} ya separan prefill y decode y ya los miden por separado; Splitwise caracteriza, además, la potencia de cada fase~\cite{patel2024splitwise}. Cabe preguntarse, entonces, qué añade una nueva caracterización por fases. La respuesta no está en qué fases se miden, sino en dónde se ejecutan. Ambos trabajos desagregan las fases sobre recursos distintos: asignan prefill a unas GPU y decode a otras, y diseñan el sistema para que cada grupo de recursos atienda una sola fase. Esa desagregación es la solución de un operador hiperescalar, que dispone de numerosas GPU interconectadas y puede dedicar una parte de ellas a cada fase. Una universidad o un laboratorio sin acceso a esa infraestructura sirve el modelo, en cambio, desde una única GPU, en la que ambas fases comparten el cómputo, el ancho de banda de memoria y el espacio disponible para el KV cache. En ese régimen, la interferencia que la desagregación elimina forma parte de las condiciones de funcionamiento, y el reparto de recursos entre fases no lo decide la topología del clúster, sino el planificador del motor y sus parámetros de configuración. Una sola GPU compartida no es, por tanto, una versión reducida de un sistema desagregado, sino un régimen distinto, con compromisos propios que los trabajos desagregados no necesitan resolver. Este TFG caracteriza el comportamiento de ambas fases precisamente en ese régimen.
+
+La literatura revisada explica, por tanto, por qué prefill y decode se comportan de forma distinta, pero no ofrece una caracterización experimental de ambas fases cuando comparten una sola GPU, y menos aún para el caso seleccionado. La Sección~\ref{sec:cap1:planteamiento} examina las consecuencias de ese vacío para quien debe configurar el servicio.
 
 \section{Planteamiento del Problema}
 \label{sec:cap1:planteamiento}
@@ -81,13 +119,13 @@ La consecuencia práctica es la dificultad para elegir una configuración adecua
 
 El caso de Qwen3-8B en una A100 ilustra la situación. La ficha institucional constata que el modelo puede ejecutarse sin dificultad en esa GPU, pero esta posibilidad no garantiza la existencia de una configuración universalmente óptima: el rendimiento depende de la carga de trabajo, de la concurrencia y de la representación numérica del modelo. Para esta combinación concreta no se dispone, además, de una caracterización experimental que separe ambas fases, como muestra la Tabla~\ref{tab:cap1:estado-arte}. Ese vacío, trasladado al despliegue, constituye el problema del trabajo.
 
-El problema descrito se formula mediante la siguiente pregunta principal: ¿cómo influyen la cuantización, la longitud de contexto y la concurrencia en el comportamiento de las fases prefill y decode de Qwen3-8B, ejecutado mediante vLLM sobre una GPU NVIDIA A100, en términos de rendimiento, memoria, energía y calidad?
+La caracterización que falta puede concretarse en preguntas específicas que la vuelven medible. Las dos primeras atañen a cada fase por separado: cómo cambia el TTFT cuando aumenta la longitud de entrada y cómo cambia el TPOT cuando aumenta la concurrencia. La tercera examina cómo influye la longitud de salida en la latencia y en la energía.
 
-La pregunta principal se descompone en preguntas específicas que la vuelven medible. Las dos primeras atañen a cada fase por separado: cómo cambia el TTFT cuando aumenta la longitud de entrada y cómo cambia el TPOT cuando aumenta la concurrencia. La tercera examina cómo influye la longitud de salida en la latencia y en la energía.
+Otras tres preguntas se ocupan de la memoria y de la capacidad del sistema: cuánta memoria ocupan las representaciones numéricas BF16 y AWQ INT4, en qué condiciones la cuantización mejora la capacidad del sistema y qué configuraciones producen saturación o errores por falta de memoria. Las dos últimas completan el recorrido: cuáles son los principales cuellos de botella de cada fase y con qué error estima un modelo predictivo básico el TTFT y el TPOT a partir de las variables experimentales delimitadas en la Sección~\ref{sec:cap1:alcance-incluye}.
 
-Otras tres preguntas se ocupan de la memoria y de la capacidad del sistema: cuánta memoria ocupan las representaciones numéricas BF16 y AWQ INT4, en qué condiciones la cuantización mejora la capacidad del sistema y qué configuraciones producen saturación o errores por falta de memoria. Las dos últimas cierran el recorrido: cuáles son los principales cuellos de botella de cada fase y con qué error estima un modelo predictivo básico el TTFT y el TPOT a partir de las variables experimentales delimitadas en la Sección~\ref{sec:cap1:alcance-incluye}.
+Responder a estas preguntas exige una secuencia de productos: un entorno en el que ejecutar el modelo, una carga controlada, un conjunto de mediciones, un análisis por fases y un modelo predictivo. La Sección~\ref{sec:cap1:justificacion} expone por qué estas preguntas merecen respuesta, y la Sección~\ref{sec:cap1:objetivos} organiza esos productos como una cadena de objetivos. Todas ellas convergen en una sola pregunta, con la que se cierra el planteamiento.
 
-Responder a estas preguntas exige una secuencia de productos: un entorno en el que ejecutar el modelo, una carga controlada, un conjunto de mediciones, un análisis por fases y un modelo predictivo. Antes de que la Sección~\ref{sec:cap1:objetivos} organice esos productos como una cadena de objetivos, la Sección~\ref{sec:cap1:justificacion} expone por qué la pregunta merece respuesta.
+En consecuencia, el problema descrito se formula mediante la siguiente pregunta principal: ¿cómo influyen la cuantización, la longitud de contexto y la concurrencia en el comportamiento de las fases prefill y decode de Qwen3-8B, ejecutado mediante vLLM sobre una GPU NVIDIA A100, en términos de rendimiento, memoria, energía y calidad?
 
 \section{Justificación}
 \label{sec:cap1:justificacion}
@@ -105,42 +143,39 @@ La justificación exige, por último, que el trabajo sea factible. En el plano t
 \section{Objetivos}
 \label{sec:cap1:objetivos}
 
-Las preguntas formuladas en la Sección~\ref{sec:cap1:planteamiento} se responden mediante un objetivo general y cinco objetivos específicos. Sus enunciados reproducen literalmente los de la ficha institucional aprobada.
+Las preguntas formuladas en la Sección~\ref{sec:cap1:planteamiento} se responden mediante un objetivo general y cuatro objetivos específicos. Sus enunciados reformulan los de la ficha institucional aprobada: conservan su contenido, expresan cada objetivo con un solo verbo e integran el diseño del benchmark en el objetivo de medición, del que es el instrumento.
 
 \subsection{Objetivo General}
 \label{sec:cap1:objetivo-general}
 
-Caracterizar y modelar experimentalmente el comportamiento de las fases prefill y decode de Qwen3-8B sobre una GPU NVIDIA A100, evaluando el efecto de la cuantización, la longitud de contexto y la concurrencia sobre el rendimiento, la memoria, la energía y la calidad.
+Identificar el efecto de la cuantización, la longitud de contexto y la concurrencia sobre el comportamiento de las fases prefill y decode de Qwen3-8B, servido mediante vLLM sobre una única GPU NVIDIA A100, en términos de rendimiento, memoria, energía y calidad, mediante la medición controlada de ambas fases y un modelo predictivo básico del TTFT y del TPOT, como base para la selección de configuraciones de inferencia según el escenario de uso.
 
-El objetivo general traslada la pregunta principal a una acción verificable. Retoma los mismos tres factores y las mismas cuatro dimensiones que la pregunta nombra, y distingue dos tareas: caracterizar el comportamiento de cada fase y modelarlo.
+El objetivo general traslada la pregunta principal a una acción verificable. Retoma los mismos tres factores y las mismas cuatro dimensiones que la pregunta nombra, precisa los dos medios con que se alcanza, la medición controlada de ambas fases y el modelo predictivo, y declara su finalidad: servir de base a la elección de configuraciones en los escenarios de uso descritos en la Sección~\ref{sec:cap1:planteamiento}.
 
 \subsection{Objetivos Específicos}
 \label{sec:cap1:objetivos-especificos}
 
-{\setlength{\emergencystretch}{1em}% evita desbordes en los OE literales
+{\setlength{\emergencystretch}{1em}% evita desbordes en los enunciados de los OE
 \begin{itemize}
-  \item[OE1.] Implementar un entorno reproducible para ejecutar Qwen3-8B mediante vLLM sobre una A100.
-  \item[OE2.] Diseñar un benchmark parametrizable para generar cargas con diferentes longitudes de entrada, salida y niveles de concurrencia.
-  \item[OE3.] Medir TTFT, TPOT, throughput, memoria GPU, utilización y consumo energético.
-  \item[OE4.] Analizar separadamente las fases prefill y decode e identificar sus principales cuellos de botella.
-  \item[OE5.] Construir un modelo predictivo básico para estimar TTFT y TPOT.
+  \item[OE1.] Levantar un entorno reproducible de ejecución de Qwen3-8B mediante vLLM sobre una A100, mediante la fijación y documentación de las versiones de CUDA, del controlador de NVIDIA, de PyTorch y de vLLM en un contenedor o entorno versionado, como garantía de que las diferencias observadas entre configuraciones puedan atribuirse a los factores estudiados y no a cambios del entorno.
+  \item[OE2.] Medir el TTFT, el TPOT, el throughput, la memoria GPU, la utilización y el consumo energético estimado, mediante un benchmark parametrizable con niveles controlados de longitud de entrada, longitud de salida y concurrencia sobre las representaciones BF16 y AWQ INT4, como base empírica del análisis por fases.
+  \item[OE3.] Analizar por separado el comportamiento de las fases prefill y decode, mediante el contraste de las mediciones con los límites de cómputo y de ancho de banda de memoria de la A100 según el modelo roofline, con vistas a la localización de los principales cuellos de botella de cada fase.
+  \item[OE4.] Construir un modelo predictivo básico del TTFT y del TPOT, a partir de las variables experimentales y de las relaciones identificadas en el análisis por fases, como soporte de la estimación y la recomendación de configuraciones del prototipo Qwen-A100 Profiler dentro de los niveles estudiados.
 \end{itemize}}
 
-Los cinco objetivos específicos se leen como una cadena y no como una lista. Los párrafos siguientes explican, para cada uno, qué vacío cierra, por qué condiciona al objetivo que le sigue y qué aporta al objetivo general.
+Los cuatro objetivos específicos se leen como una cadena y no como una lista. Los párrafos siguientes explican, para cada uno, qué vacío cierra, por qué condiciona al objetivo que le sigue y qué aporta al objetivo general.
 
-OE1 cierra la ausencia de un entorno controlado en el que medir. La ficha institucional exige congelar y documentar las versiones de CUDA, del controlador de NVIDIA, de PyTorch y de vLLM, de modo que los experimentos puedan reconstruirse. Sin esa condición, ninguna diferencia observada entre configuraciones podría atribuirse a los factores estudiados en lugar de a cambios del entorno. Por esa razón, OE1 es condición necesaria de OE2: un benchmark solo produce cargas comparables si se ejecuta siempre sobre el mismo entorno. Al objetivo general, OE1 le aporta la reproducibilidad de la caracterización.
+OE1 cierra la ausencia de un entorno controlado en el que medir. La ficha institucional exige congelar y documentar las versiones de CUDA, del controlador de NVIDIA, de PyTorch y de vLLM, de modo que los experimentos puedan reconstruirse. Sin esa condición, ninguna diferencia observada entre configuraciones podría atribuirse a los factores estudiados en lugar de a cambios del entorno. Por esa razón, OE1 es condición necesaria de OE2: dos mediciones solo son comparables si se realizan sobre el mismo entorno. Al objetivo general, OE1 le aporta la reproducibilidad de la medición.
 
-OE2 cierra la distancia entre la pregunta y los datos. Las preguntas específicas varían la longitud de entrada, la longitud de salida y la concurrencia, y ningún entorno genera por sí solo cargas con esos niveles controlados. El benchmark parametrizable produce esas cargas de forma sistemática sobre el entorno de OE1. Es condición necesaria de OE3, porque una métrica solo puede atribuirse a un factor si la carga que la produjo está controlada. Al objetivo general, OE2 le aporta la variación sistemática de la longitud de contexto y de la concurrencia, mientras que la cuantización se introduce al ejecutar el modelo en sus dos representaciones numéricas.
+OE2 cierra dos vacíos a la vez: la distancia entre la pregunta y los datos, y la ausencia de mediciones para esta combinación, señalada en la Tabla~\ref{tab:cap1:estado-arte}. Las preguntas específicas varían la longitud de entrada, la longitud de salida y la concurrencia, y ningún entorno genera por sí solo cargas con esos niveles controlados. El benchmark parametrizable produce esas cargas de forma sistemática sobre el entorno de OE1; es, por tanto, el instrumento de la medición y no un fin en sí mismo. La cuantización se introduce al ejecutar el modelo en sus dos representaciones numéricas. El TTFT y el TPOT reflejan cada fase por separado; el throughput, la memoria GPU, la utilización y el consumo energético cubren las dimensiones de rendimiento, memoria y energía del objetivo general. El consumo energético se obtiene como estimación a partir de la telemetría interna de la GPU, según precisa la Sección~\ref{sec:cap1:alcance-incluye}. OE2 es condición necesaria de OE3, porque una métrica solo puede atribuirse a un factor, y a una fase, si la carga que la produjo está controlada.
 
-OE3 cierra la ausencia de mediciones para esta combinación, señalada en la Tabla~\ref{tab:cap1:estado-arte}. El TTFT y el TPOT reflejan cada fase por separado; el throughput, la memoria GPU, la utilización y el consumo energético cubren las dimensiones de rendimiento, memoria y energía del objetivo general. Es condición necesaria de OE4, porque el análisis por fases requiere datos medidos bajo las cargas controladas de OE2. El consumo energético se obtiene como estimación a partir de la telemetría interna de la GPU, según precisa la Sección~\ref{sec:cap1:alcance-incluye}.
+OE3 cierra el vacío central del planteamiento: la explicación de los compromisos que las métricas agregadas registran sin explicar. Separar prefill y decode permite atribuir cada efecto observado a la fase que lo produce, y el contraste con los límites del modelo roofline, descrito en la Sección~\ref{sec:cap1:roofline}, permite localizar en cuál de ellas aparece cada cuello de botella. Es condición necesaria de OE4, porque el modelo predictivo estima el TTFT y el TPOT por separado, y cada estimación exige conocer qué variables gobiernan la fase correspondiente. Con OE3 se completa el primero de los dos medios que nombra el objetivo general.
 
-OE4 cierra el vacío central del planteamiento: la explicación de los compromisos que las métricas agregadas registran sin explicar. Separar prefill y decode permite atribuir cada efecto observado a la fase que lo produce y localizar en cuál de ellas aparece cada cuello de botella. Es condición necesaria de OE5, porque el modelo predictivo estima el TTFT y el TPOT por separado, y cada estimación exige conocer qué variables gobiernan la fase correspondiente. Con OE4 se completa la parte de caracterización del objetivo general.
+OE4 cierra el paso de la descripción a la anticipación. Un modelo predictivo básico estima el TTFT y el TPOT de una configuración a partir de las variables experimentales, sin necesidad de ejecutarla, dentro de los niveles estudiados. Como último eslabón, OE4 no habilita otro objetivo específico; alimenta, en cambio, la estimación que realiza el prototipo Qwen-A100 Profiler descrito en la Sección~\ref{sec:cap1:justificacion}. Con él se completa el segundo medio del objetivo general.
 
-OE5 cierra el paso de la descripción a la anticipación. Un modelo predictivo básico estima el TTFT y el TPOT de una configuración a partir de las variables experimentales, sin necesidad de ejecutarla, dentro de los niveles estudiados. Como último eslabón, OE5 no habilita otro objetivo específico; alimenta, en cambio, la estimación que realiza el prototipo Qwen-A100 Profiler descrito en la Sección~\ref{sec:cap1:justificacion}. Con él se completa la parte de modelado del objetivo general.
+Para OE4, la ficha institucional establece como meta referencial un error porcentual absoluto medio (MAPE) inferior al 15--20~\% en las métricas principales. Esta meta es ajustable después de los experimentos piloto. No constituye, por tanto, un compromiso cerrado sobre la precisión del modelo predictivo.
 
-Para OE5, la ficha institucional establece como meta referencial un error porcentual absoluto medio (MAPE) inferior al 15--20~\% en las métricas principales. Esta meta es ajustable después de los experimentos piloto. No constituye, por tanto, un compromiso cerrado sobre la precisión del modelo predictivo.
-
-Leídos en conjunto, los cinco objetivos forman una cadena: el entorno de OE1 sostiene el benchmark de OE2, cuyas cargas producen las mediciones de OE3, que alimentan el análisis por fases de OE4 y, a través de él, el modelo predictivo de OE5. La dimensión de calidad que el objetivo general incluye se aborda mediante la comparación limitada entre BF16 y AWQ INT4 que precisa la Sección~\ref{sec:cap1:alcance-incluye}. Queda por precisar hasta dónde llega la respuesta, cometido de la Sección~\ref{sec:cap1:alcance}.
+Leídos en conjunto, los cuatro objetivos forman una cadena: el entorno de OE1 sostiene las mediciones de OE2, que alimentan el análisis por fases de OE3 y, a través de él, el modelo predictivo de OE4. La dimensión de calidad que el objetivo general incluye se aborda mediante la comparación limitada entre BF16 y AWQ INT4 que precisa la Sección~\ref{sec:cap1:alcance-incluye}. Queda por precisar hasta dónde llega la respuesta, cometido de la Sección~\ref{sec:cap1:alcance}.
 
 \section{Alcance del Proyecto}
 \label{sec:cap1:alcance}

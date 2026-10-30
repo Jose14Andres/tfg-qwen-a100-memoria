@@ -1,0 +1,9 @@
+compute-0-1.hpc.cedia.edu.ec
+Tue 27 Oct 2026 05:11:07 PM -05
+134.39 131.69 131.02 129/4448 4068613
+GPU 0: NVIDIA A100-SXM4-40GB (UUID: GPU-a4e64aec-098f-e55a-3e41-76e691d4d42a)
+name, memory.total [MiB], power.limit [W], clocks.max.sm [MHz], driver_version
+NVIDIA A100-SXM4-40GB, 40960 MiB, 400.00 W, 1410 MHz, 535.161.08
+vllm 0.20.0 | torch 2.11.0+cu129 | cuda 12.9
+MODEL=Qwen/Qwen3-8B
+vllm serve Qwen/Qwen3-8B --host 127.0.0.1 --port 8000 --max-model-len 8192 --gpu-memory-utilization 0.90 --no-enable-prefix-caching
