@@ -31,3 +31,9 @@ __pycache__/
 
 # --- Ficha institucional (contiene correos de terceros) ---
 informacion-tesis*.txt
+
+# --- Resultados del clúster: sus .log/.out son evidencia citada en la memoria ---
+!Pruebas_Jose_Ureta_Tesis/**/*.log
+!Pruebas_Jose_Ureta_Tesis/**/*.out
+!tfg-jose-ureta/**/*.log
+!tfg-jose-ureta/**/*.out

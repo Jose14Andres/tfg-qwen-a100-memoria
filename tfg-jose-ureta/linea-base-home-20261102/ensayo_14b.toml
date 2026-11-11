@@ -1,0 +1,26 @@
+# E1 — Prefill con Qwen3-14B BF16: los mismos puntos que e1_prefill.toml (8B) para comparar directamente.
+# 7 puntos x (30 medidas + 3 de calentamiento). Lo lanza tesis/a100_qwen3_14b.sh; la URL y el directorio los pone el script.
+
+[servidor]
+url_base = "http://127.0.0.1:8000"
+modelo = "Qwen/Qwen3-14B"
+timeout_s = 600
+
+[tokenizer]
+id = "Qwen/Qwen3-14B"
+revision = "40c069824f4251a91eefaf281ebe4c544efd3e18"   # la pone tesis/descargar_qwen3_14b.sh con el snapshot de hf-cache
+solo_local = true
+
+[carga]
+longitudes_entrada = [128, 7680]
+longitudes_salida = [16]
+concurrencias = [1]
+num_solicitudes = 2
+num_calentamiento = 1
+semilla = 0
+temperatura = 0.0
+ignore_eos = true
+
+[salida]
+directorio = "../resultados"
+etiqueta = "ensayo-14b"

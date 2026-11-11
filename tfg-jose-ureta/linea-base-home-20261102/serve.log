@@ -1,0 +1,102 @@
+(APIServer pid=3336612) INFO 11-02 09:28:20 [utils.py:299] 
+(APIServer pid=3336612) INFO 11-02 09:28:20 [utils.py:299]        █     █     █▄   ▄█
+(APIServer pid=3336612) INFO 11-02 09:28:20 [utils.py:299]  ▄▄ ▄█ █     █     █ ▀▄▀ █  version 0.20.0
+(APIServer pid=3336612) INFO 11-02 09:28:20 [utils.py:299]   █▄█▀ █     █     █     █  model   Qwen/Qwen3-14B
+(APIServer pid=3336612) INFO 11-02 09:28:20 [utils.py:299]    ▀▀  ▀▀▀▀▀ ▀▀▀▀▀ ▀     ▀
+(APIServer pid=3336612) INFO 11-02 09:28:20 [utils.py:299] 
+(APIServer pid=3336612) INFO 11-02 09:28:20 [utils.py:233] non-default args: {'model_tag': 'Qwen/Qwen3-14B', 'host': '127.0.0.1', 'model': 'Qwen/Qwen3-14B', 'max_model_len': 8192, 'gpu_memory_utilization': 0.9, 'enable_prefix_caching': False}
+(APIServer pid=3336612) INFO 11-02 09:28:20 [arg_utils.py:718] HF_HUB_OFFLINE is True, replace model_id [Qwen/Qwen3-14B] to model_path [/home/andres.rubio/tfg-jose-ureta/hf-cache/hub/models--Qwen--Qwen3-14B/snapshots/40c069824f4251a91eefaf281ebe4c544efd3e18]
+(APIServer pid=3336612) INFO 11-02 09:28:22 [model.py:555] Resolved architecture: Qwen3ForCausalLM
+(APIServer pid=3336612) INFO 11-02 09:28:22 [model.py:1680] Using max model len 8192
+(APIServer pid=3336612) INFO 11-02 09:28:22 [vllm.py:840] Asynchronous scheduling is enabled.
+(APIServer pid=3336612) INFO 11-02 09:28:22 [kernel.py:205] Final IR op priority after setting platform defaults: IrOpPriorityConfig(rms_norm=['native'])
+(EngineCore pid=3364625) INFO 11-02 09:54:46 [core.py:109] Initializing a V1 LLM engine (v0.20.0) with config: model='/home/andres.rubio/tfg-jose-ureta/hf-cache/hub/models--Qwen--Qwen3-14B/snapshots/40c069824f4251a91eefaf281ebe4c544efd3e18', speculative_config=None, tokenizer='/home/andres.rubio/tfg-jose-ureta/hf-cache/hub/models--Qwen--Qwen3-14B/snapshots/40c069824f4251a91eefaf281ebe4c544efd3e18', skip_tokenizer_init=False, tokenizer_mode=auto, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=8192, download_dir=None, load_format=auto, tensor_parallel_size=1, pipeline_parallel_size=1, data_parallel_size=1, decode_context_parallel_size=1, dcp_comm_backend=ag_rs, disable_custom_all_reduce=False, quantization=None, quantization_config=None, enforce_eager=False, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=cuda, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False), seed=0, served_model_name=/home/andres.rubio/tfg-jose-ureta/hf-cache/hub/models--Qwen--Qwen3-14B/snapshots/40c069824f4251a91eefaf281ebe4c544efd3e18, enable_prefix_caching=False, enable_chunked_prefill=True, pooler_config=None, compilation_config={'mode': <CompilationMode.VLLM_COMPILE: 3>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'inductor', 'custom_ops': ['none'], 'ir_enable_torch_wrap': True, 'splitting_ops': ['vllm::unified_attention_with_output', 'vllm::unified_mla_attention_with_output', 'vllm::mamba_mixer2', 'vllm::mamba_mixer', 'vllm::short_conv', 'vllm::linear_attention', 'vllm::plamo2_mamba_mixer', 'vllm::gdn_attention_core', 'vllm::gdn_attention_core_xpu', 'vllm::olmo_hybrid_gdn_full_forward', 'vllm::kda_attention', 'vllm::sparse_attn_indexer', 'vllm::rocm_aiter_sparse_attn_indexer', 'vllm::deepseek_v4_attention', 'vllm::unified_kv_cache_update', 'vllm::unified_mla_kv_cache_update'], 'compile_mm_encoder': False, 'cudagraph_mm_encoder': False, 'encoder_cudagraph_token_budgets': [], 'encoder_cudagraph_max_vision_items_per_batch': 0, 'encoder_cudagraph_max_frames_per_batch': None, 'compile_sizes': [], 'compile_ranges_endpoints': [2048], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'size_asserts': False, 'alignment_asserts': False, 'scalar_asserts': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.FULL_AND_PIECEWISE: (2, 1)>, 'cudagraph_num_of_warmups': 1, 'cudagraph_capture_sizes': [1, 2, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 248, 256, 272, 288, 304, 320, 336, 352, 368, 384, 400, 416, 432, 448, 464, 480, 496, 512], 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': False, 'fuse_act_quant': False, 'fuse_attn_quant': False, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False}, 'max_cudagraph_capture_size': 512, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': False, 'static_all_moe_layers': []}, kernel_config=KernelConfig(ir_op_priority=IrOpPriorityConfig(rms_norm=['native']), enable_flashinfer_autotune=True, moe_backend='auto')
+(EngineCore pid=3364625) INFO 11-02 09:57:12 [nixl_utils.py:20] Setting UCX_RCACHE_MAX_UNRELEASED to '1024' to avoid a rare memory leak in UCX when using NIXL.
+(EngineCore pid=3364625) WARNING 11-02 09:57:12 [nixl_utils.py:34] NIXL is not available
+(EngineCore pid=3364625) WARNING 11-02 09:57:12 [nixl_utils.py:44] NIXL agent config is not available
+(EngineCore pid=3364625) INFO 11-02 09:58:38 [parallel_state.py:1402] world_size=1 rank=0 local_rank=0 distributed_init_method=tcp://201.159.221.22:47025 backend=nccl
+(EngineCore pid=3364625) INFO 11-02 09:58:39 [parallel_state.py:1715] rank 0 in world size 1 is assigned as DP rank 0, PP rank 0, PCP rank 0, TP rank 0, EP rank N/A, EPLB rank N/A
+(EngineCore pid=3364625) INFO 11-02 09:59:15 [gpu_model_runner.py:4777] Starting to load model /home/andres.rubio/tfg-jose-ureta/hf-cache/hub/models--Qwen--Qwen3-14B/snapshots/40c069824f4251a91eefaf281ebe4c544efd3e18...
+(EngineCore pid=3364625) INFO 11-02 10:01:20 [cuda.py:368] Using FLASH_ATTN attention backend out of potential backends: ['FLASH_ATTN', 'FLASHINFER', 'TRITON_ATTN', 'FLEX_ATTENTION'].
+(EngineCore pid=3364625) INFO 11-02 10:01:20 [flash_attn.py:646] Using FlashAttention version 2
+(EngineCore pid=3364625) <frozen importlib._bootstrap_external>:1241: FutureWarning: The cuda.cudart module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.runtime module instead.
+(EngineCore pid=3364625) <frozen importlib._bootstrap_external>:1241: FutureWarning: The cuda.nvrtc module is deprecated and will be removed in a future release, please switch to use the cuda.bindings.nvrtc module instead.
+(EngineCore pid=3364625) INFO 11-02 10:02:11 [weight_utils.py:904] Filesystem type for checkpoints: NFS4. Checkpoint size: 27.51 GiB. Available RAM: 968.73 GiB.
+(EngineCore pid=3364625) INFO 11-02 10:02:11 [weight_utils.py:874] Prefetching checkpoint files into page cache started (in background)
+(EngineCore pid=3364625) Loading safetensors checkpoint shards:   0% Completed | 0/8 [00:00<?, ?it/s]
+(EngineCore pid=3364625) INFO 11-02 10:02:45 [weight_utils.py:851] Prefetching checkpoint files: 10% (1/8)
+(EngineCore pid=3364625) INFO 11-02 10:03:05 [weight_utils.py:851] Prefetching checkpoint files: 20% (2/8)
+(EngineCore pid=3364625) Loading safetensors checkpoint shards:  12% Completed | 1/8 [00:54<06:19, 54.25s/it]
+(EngineCore pid=3364625) Loading safetensors checkpoint shards:  25% Completed | 2/8 [00:55<02:17, 22.93s/it]
+(EngineCore pid=3364625) INFO 11-02 10:03:10 [weight_utils.py:851] Prefetching checkpoint files: 30% (3/8)
+(EngineCore pid=3364625) INFO 11-02 10:03:38 [weight_utils.py:851] Prefetching checkpoint files: 40% (4/8)
+(EngineCore pid=3364625) INFO 11-02 10:03:41 [weight_utils.py:851] Prefetching checkpoint files: 50% (5/8)
+(EngineCore pid=3364625) INFO 11-02 10:03:42 [weight_utils.py:851] Prefetching checkpoint files: 60% (6/8)
+(EngineCore pid=3364625) INFO 11-02 10:03:42 [weight_utils.py:851] Prefetching checkpoint files: 70% (7/8)
+(EngineCore pid=3364625) INFO 11-02 10:03:46 [weight_utils.py:851] Prefetching checkpoint files: 80% (8/8)
+(EngineCore pid=3364625) Loading safetensors checkpoint shards:  38% Completed | 3/8 [01:34<02:32, 30.55s/it]
+(EngineCore pid=3364625) INFO 11-02 10:03:46 [weight_utils.py:869] Prefetching checkpoint files into page cache finished in 95.08s
+(EngineCore pid=3364625) Loading safetensors checkpoint shards:  50% Completed | 4/8 [01:35<01:14, 18.75s/it]
+(EngineCore pid=3364625) Loading safetensors checkpoint shards:  62% Completed | 5/8 [01:37<00:38, 12.78s/it]
+(EngineCore pid=3364625) Loading safetensors checkpoint shards:  75% Completed | 6/8 [01:42<00:19,  9.97s/it]
+(EngineCore pid=3364625) Loading safetensors checkpoint shards:  88% Completed | 7/8 [01:50<00:09,  9.25s/it]
+(EngineCore pid=3364625) Loading safetensors checkpoint shards: 100% Completed | 8/8 [01:50<00:00,  6.43s/it]
+(EngineCore pid=3364625) Loading safetensors checkpoint shards: 100% Completed | 8/8 [01:50<00:00, 13.80s/it]
+(EngineCore pid=3364625) 
+(EngineCore pid=3364625) INFO 11-02 10:04:02 [default_loader.py:384] Loading weights took 110.48 seconds
+(EngineCore pid=3364625) INFO 11-02 10:04:02 [gpu_model_runner.py:4879] Model loading took 27.52 GiB memory and 285.896420 seconds
+(APIServer pid=3336612) Traceback (most recent call last):
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/bin/vllm", line 10, in <module>
+(APIServer pid=3336612)     sys.exit(main())
+(APIServer pid=3336612)              ^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/entrypoints/cli/main.py", line 92, in main
+(APIServer pid=3336612)     args.dispatch_function(args)
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/entrypoints/cli/serve.py", line 122, in cmd
+(APIServer pid=3336612)     uvloop.run(run_server(args))
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/uvloop/__init__.py", line 92, in run
+(APIServer pid=3336612)     return runner.run(wrapper())
+(APIServer pid=3336612)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "/sw/apps/miniconda3/envs/py311/lib/python3.11/asyncio/runners.py", line 118, in run
+(APIServer pid=3336612)     return self._loop.run_until_complete(task)
+(APIServer pid=3336612)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "uvloop/loop.pyx", line 1515, in uvloop.loop.Loop.run_until_complete
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/uvloop/__init__.py", line 48, in wrapper
+(APIServer pid=3336612)     return await main
+(APIServer pid=3336612)            ^^^^^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/entrypoints/openai/api_server.py", line 678, in run_server
+(APIServer pid=3336612)     await run_server_worker(listen_address, sock, args, **uvicorn_kwargs)
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/entrypoints/openai/api_server.py", line 692, in run_server_worker
+(APIServer pid=3336612)     async with build_async_engine_client(
+(APIServer pid=3336612)   File "/sw/apps/miniconda3/envs/py311/lib/python3.11/contextlib.py", line 210, in __aenter__
+(APIServer pid=3336612)     return await anext(self.gen)
+(APIServer pid=3336612)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/entrypoints/openai/api_server.py", line 100, in build_async_engine_client
+(APIServer pid=3336612)     async with build_async_engine_client_from_engine_args(
+(APIServer pid=3336612)   File "/sw/apps/miniconda3/envs/py311/lib/python3.11/contextlib.py", line 210, in __aenter__
+(APIServer pid=3336612)     return await anext(self.gen)
+(APIServer pid=3336612)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/entrypoints/openai/api_server.py", line 136, in build_async_engine_client_from_engine_args
+(APIServer pid=3336612)     async_llm = AsyncLLM.from_vllm_config(
+(APIServer pid=3336612)                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/v1/engine/async_llm.py", line 217, in from_vllm_config
+(APIServer pid=3336612)     return cls(
+(APIServer pid=3336612)            ^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/v1/engine/async_llm.py", line 146, in __init__
+(APIServer pid=3336612)     self.engine_core = EngineCoreClient.make_async_mp_client(
+(APIServer pid=3336612)                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/tracing/otel.py", line 178, in sync_wrapper
+(APIServer pid=3336612)     return func(*args, **kwargs)
+(APIServer pid=3336612)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/v1/engine/core_client.py", line 130, in make_async_mp_client
+(APIServer pid=3336612)     return AsyncMPClient(*client_args)
+(APIServer pid=3336612)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/tracing/otel.py", line 178, in sync_wrapper
+(APIServer pid=3336612)     return func(*args, **kwargs)
+(APIServer pid=3336612)            ^^^^^^^^^^^^^^^^^^^^^
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/v1/engine/core_client.py", line 900, in __init__
+(APIServer pid=3336612)     super().__init__(
+(APIServer pid=3336612)   File "/home/andres.rubio/tfg-jose-ureta/venv-vllm/lib/python3.11/site-packages/vllm/v1/engine/core_client.py", line 584, in __init__
+(APIServer pid=3336612)     raise TimeoutError(
+(APIServer pid=3336612) TimeoutError: Timed out waiting for engine core processes to start. This is often caused by slow weight loading for large models. Waited 600s (configured by VLLM_ENGINE_READY_TIMEOUT_S). To increase the timeout, set the environment variable: VLLM_ENGINE_READY_TIMEOUT_S=<seconds>
+/sw/apps/miniconda3/envs/py311/lib/python3.11/multiprocessing/resource_tracker.py:254: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

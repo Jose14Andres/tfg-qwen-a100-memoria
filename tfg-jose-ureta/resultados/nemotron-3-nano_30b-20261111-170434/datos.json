@@ -1,0 +1,62 @@
+{
+  "meta": {
+    "herramienta": "medir_ollama.py",
+    "inicio": "2026-11-11T17:04:35",
+    "nodo": "compute-0-1.hpc.cedia.edu.ec",
+    "slurm_job": "33107",
+    "python": "3.8.10",
+    "ollama_version": "0.24.0",
+    "modelo": "nemotron-3-nano:30b",
+    "modelo_detalles": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "nemotron_h_moe",
+      "families": [
+        "nemotron_h_moe"
+      ],
+      "parameter_size": "31.6B",
+      "quantization_level": "Q4_K_M"
+    },
+    "parametros": {
+      "entradas": "128,512,2048",
+      "salida": 128,
+      "reps": 5,
+      "calentamiento": 1,
+      "num_ctx": 8192,
+      "temperature": 0,
+      "raw": true
+    },
+    "gpu_antes": {
+      "usado_mib": 18951,
+      "total_mib": 40960,
+      "nombre": "NVIDIA A100-SXM4-40GB"
+    },
+    "loadavg_antes": [
+      202.17,
+      313.6,
+      361.31
+    ]
+  },
+  "carga_modelo": {
+    "ok": true,
+    "error": null,
+    "latencia_s": 226.7873433828354,
+    "ttft_s": 226.78725147992373,
+    "fragmentos": 1,
+    "itl_s": [],
+    "prompt_tokens": 2,
+    "salida_tokens": 1,
+    "done_reason": "length",
+    "servidor_load_s": 186.403026226,
+    "servidor_prefill_s": 40.338982115,
+    "servidor_decode_s": 0.0,
+    "servidor_total_s": 226.786147443,
+    "servidor_prefill_tok_s": 0.049579833083004406,
+    "gpu_despues": {
+      "usado_mib": 20657,
+      "total_mib": 40960,
+      "nombre": "NVIDIA A100-SXM4-40GB"
+    }
+  },
+  "puntos": []
+}

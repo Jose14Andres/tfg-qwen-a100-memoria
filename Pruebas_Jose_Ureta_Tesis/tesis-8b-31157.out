@@ -1,0 +1,3 @@
+[17:11:06] entorno
+[17:32:50] vllm serve (arranque con torch.compile: puede tardar ~30 min)
+[18:17:56] el servidor no arrancó en 45 min (ver serve.log)

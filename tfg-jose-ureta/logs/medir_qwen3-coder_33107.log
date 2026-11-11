@@ -1,0 +1,22 @@
+[17:01:24] resultados en /home/andres.rubio/tfg-jose-ureta/ollama/resultados/qwen3-coder_30b-20261111-170123
+[17:01:24] cargando modelo...
+[17:02:50] carga: ok=True latencia=85.8 s load=85.7 s GPU=18949 MiB
+[17:02:54] in~128 #0 ok=True prompt=195 out=128 ttft=2.735 s prefill=0.556 s tpot=8.5 ms
+[17:02:56] in~128 #1 ok=True prompt=195 out=128 ttft=1.379 s prefill=0.119 s tpot=8.5 ms
+[17:03:00] in~128 #2 ok=True prompt=195 out=128 ttft=2.209 s prefill=0.100 s tpot=8.5 ms
+[17:03:03] in~128 #3 ok=True prompt=195 out=128 ttft=1.758 s prefill=0.100 s tpot=8.4 ms
+[17:03:06] in~128 #4 ok=True prompt=195 out=128 ttft=1.909 s prefill=0.099 s tpot=8.4 ms
+[17:03:09] in~128 #5 ok=True prompt=195 out=128 ttft=1.691 s prefill=0.100 s tpot=8.6 ms
+[17:03:11] in~512 #0 ok=True prompt=717 out=128 ttft=1.087 s prefill=0.272 s tpot=8.8 ms
+[17:03:14] in~512 #1 ok=True prompt=717 out=128 ttft=1.336 s prefill=0.270 s tpot=8.7 ms
+[17:03:16] in~512 #2 ok=True prompt=717 out=128 ttft=1.227 s prefill=0.271 s tpot=8.7 ms
+[17:03:20] in~512 #3 ok=True prompt=717 out=128 ttft=2.096 s prefill=0.270 s tpot=8.7 ms
+[17:03:23] in~512 #4 ok=True prompt=717 out=128 ttft=1.608 s prefill=0.270 s tpot=8.8 ms
+[17:03:25] in~512 #5 ok=True prompt=716 out=128 ttft=1.724 s prefill=0.270 s tpot=8.7 ms
+[17:03:29] in~2048 #0 ok=True prompt=2800 out=128 ttft=2.595 s prefill=0.921 s tpot=9.1 ms
+[17:03:33] in~2048 #1 ok=True prompt=2799 out=128 ttft=2.473 s prefill=0.915 s tpot=9.1 ms
+[17:03:37] in~2048 #2 ok=True prompt=2800 out=128 ttft=2.480 s prefill=0.919 s tpot=9.1 ms
+[17:03:41] in~2048 #3 ok=True prompt=2800 out=128 ttft=2.824 s prefill=0.918 s tpot=9.1 ms
+[17:03:46] in~2048 #4 ok=True prompt=2800 out=128 ttft=3.325 s prefill=0.918 s tpot=9.1 ms
+[17:03:50] in~2048 #5 ok=True prompt=2800 out=128 ttft=3.258 s prefill=0.918 s tpot=9.1 ms
+[17:03:53] fin; resumen en /home/andres.rubio/tfg-jose-ureta/ollama/resultados/qwen3-coder_30b-20261111-170123/resumen.json
