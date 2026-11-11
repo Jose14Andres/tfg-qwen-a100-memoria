@@ -4,18 +4,47 @@
 \section{Descripción de la Solución}
 \label{sec:cap3:descripcion}
 
-La solución implementada es un banco de pruebas que mide por separado las fases prefill y decode de Qwen3-8B servido con vLLM en una A100-SXM4-40GB del clúster HPC CEDIA. Se compone del entorno de software congelado y del parche de compatibilidad descritos en la Sección~\ref{sec:cap2:diseno}, del script de medición \texttt{bench\_pd.sh}, cuyas fases recoge la Tabla~\ref{tab:cap2:fases}, y del script de campaña \texttt{a100\_qwen3\_8b.sh}, que la Sección~\ref{sec:cap3:rediseno} presenta como respuesta a los problemas observados en la primera ejecución.
+La solución implementada es un banco de pruebas que mide por separado las fases prefill y decode de un modelo servido en una A100-SXM4-40GB del clúster HPC CEDIA. Su objetivo es la campaña con Qwen3-14B servido con vLLM, y se construyó y calibró con Qwen3-8B como piloto. El banco no se diseñó de una vez: cada componente apareció como respuesta a un fallo o a una limitación observada en una iteración concreta de la Tabla~\ref{tab:cap2:iteraciones}. La Tabla~\ref{tab:cap3:componentes} recoge los componentes, su función y la iteración que los originó.
 
-Este capítulo informa de la primera ejecución completa sobre la A100 con el modelo objetivo, el trabajo de Slurm 30732. Ese trabajo cubrió las fases 0 a 2 de \texttt{bench\_pd.sh}: registro del entorno, prueba de humo y barrido sin servidor. Sus resultados son, por tanto, resultados piloto: validan el banco y el método de diferencia de latencias, pero no constituyen todavía la campaña experimental.
-% PENDIENTE: describir el cliente tfgbench (RF3-RF6) y los experimentos E1 y E2 cuando se complete la campaña.
+\begin{table}[htbp]
+  \centering
+  \caption{Componentes del banco de pruebas.}
+  \label{tab:cap3:componentes}
+  \footnotesize
+  \begin{tabular}{|p{0.27\textwidth}|p{0.47\textwidth}|p{0.14\textwidth}|}
+    \hline
+    \textbf{Componente} & \textbf{Función} & \textbf{Iteración} \\
+    \hline
+    Entorno congelado y \texttt{parche\_glibc.sh} & Ejecutar vLLM 0.20.0 en los nodos con glibc 2.31 (Sección~\ref{sec:cap2:diseno}) & 1 \\
+    \hline
+    \texttt{bench\_pd.sh} & Barrido sin servidor con \texttt{vllm bench latency}, un motor por configuración & 2 \\
+    \hline
+    Cliente \texttt{tfgbench} & Cliente en streaming contra un servidor único; salida compatible con \texttt{vllm bench serve} & 3 \\
+    \hline
+    \texttt{a100\_qwen3\_8b.sh} & Trabajo de Slurm con un único \texttt{vllm serve} y los experimentos E1 y E2 & 3 y 4 \\
+    \hline
+    \texttt{ensayo.sh} & Ensayo del arranque de Qwen3-14B desde el NFS con carga mínima & 6 \\
+    \hline
+    \texttt{activar\_scratch.sh}, \texttt{fase1\_preparar.sh} & Copia del entorno virtual y de la caché de modelos al disco local del trabajo & 7 \\
+    \hline
+    \texttt{fase2\_arranque.sh} & Arranque cronometrado de \texttt{vllm serve} desde \texttt{/scratch}, con espera máxima de 15~min & 7 \\
+    \hline
+    \texttt{medir\_ollama.py}, \texttt{resumir.py} & Medición de contraste contra Ollama y agregación de resultados en JSON y Markdown & 8 \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Repositorio del trabajo y carpeta \texttt{tfg-jose-ureta} del clúster}
+
+Este capítulo sigue el mismo orden. La Sección~\ref{sec:cap3:proceso} describe cada iteración: qué se implementó, qué ocurrió al ejecutarlo y qué se cambió después. La Sección~\ref{sec:cap3:pruebas} reúne las pruebas que validan los instrumentos, y la Sección~\ref{sec:cap3:resultados}, los resultados obtenidos hasta la fecha: los del piloto con Qwen3-8B y los del contraste con Ollama. La campaña con Qwen3-14B no ha producido todavía mediciones de rendimiento, porque el arranque del servidor es el problema abierto de la iteración 7; el capítulo lo declara en lugar de omitirlo.
 
 \section{Proceso de Implementación}
 \label{sec:cap3:proceso}
 
-\subsection{Ejecución del trabajo 30732}
+\subsection{Piloto con Qwen3-8B: trabajo 30732}
 \label{sec:cap3:trabajo}
 
-El trabajo 30732 se ejecutó el 24 de octubre de 2026 sobre una A100 completa, sin particiones MIG. La Tabla~\ref{tab:cap3:trabajo} recoge el entorno registrado por la fase 0 en \texttt{entorno.txt}. La carga del nodo al inicio, 37,20 en la ventana de un minuto sobre 256 núcleos, es baja frente a la documentada en la Sección~\ref{sec:cap2:control}.
+El trabajo 30732, correspondiente a la iteración 2, se ejecutó el 24 de octubre de 2026 sobre una A100 completa, sin particiones MIG. La Tabla~\ref{tab:cap3:trabajo} recoge el entorno registrado por la fase 0 en \texttt{entorno.txt}. La carga del nodo al inicio, 37,20 en la ventana de un minuto sobre 256 núcleos, es baja frente a la documentada en la Sección~\ref{sec:cap2:control}.
 
 \begin{table}[htbp]
   \centering
@@ -75,21 +104,47 @@ Cada configuración del barrido sin servidor se midió con \texttt{vllm bench la
 
 La tabla muestra una desproporción que condiciona el resto de la implementación. Las tres configuraciones completadas sumaron menos de 18~s de medición efectiva en un trabajo de casi cinco horas. La primera compilación de \texttt{torch.compile} tardó 1416~s y guardó su resultado en la caché \texttt{\textasciitilde/.cache/\allowbreak vllm/\allowbreak torch\_compile\_cache}, lo que explica que las inicializaciones siguientes bajaran a 436~s y 249~s. Aun así, cada ejecución siguió costando entre 29 y 75 minutos.
 
-La inicialización del motor no explica toda esa duración. En la primera ejecución transcurrieron 38 minutos entre la lectura de la configuración, a las 12:12:25, y la creación del motor, a las 12:50:35, y entre el final de una ejecución y el primer registro de la siguiente pasaron 23 y 30 minutos. La causa de estas esperas no quedó determinada. Los pesos residen en un sistema de archivos NFS4, según el propio registro de vLLM, y su lectura tardó 57~s en la primera ejecución y 10~s en las siguientes, de modo que la lectura de los pesos tampoco basta para explicarlas.
+La inicialización del motor no explica toda esa duración. En la primera ejecución transcurrieron 38 minutos entre la lectura de la configuración, a las 12:12:25, y la creación del motor, a las 12:50:35, y entre el final de una ejecución y el primer registro de la siguiente pasaron 23 y 30 minutos. En el momento del piloto la causa de estas esperas no quedó determinada. Los pesos residen en un sistema de archivos NFS4, según el propio registro de vLLM, y su lectura tardó 57~s en la primera ejecución y 10~s en las siguientes, de modo que la lectura de los pesos tampoco basta para explicarlas. La iteración 6, descrita en la Sección~\ref{sec:cap3:arranque14b}, aportó la explicación más probable: la importación de la pila de Python desde el mismo NFS.
 
-La quinta configuración no llegó a medirse. La telemetría se detiene a las 16:06:11, cuando el motor de esa ejecución aún se estaba inicializando, y ningún registro indica un error.
-% REVISAR: confirmar con sacct -j 30732 si el trabajo terminó por el límite de tiempo.
+La quinta configuración no llegó a medirse. La telemetría se detiene a las 16:06:11, cuando el motor de esa ejecución aún se estaba inicializando, y ningún registro indica un error. Ese corte coincide con el límite de 5~horas del trabajo.
+% REVISAR: confirmar con sacct -j 30732 que el estado final fue TIMEOUT.
 
-\subsection{Rediseño de la ejecución}
+\subsection{Servidor único y cliente propio}
 \label{sec:cap3:rediseno}
 
-El trabajo 30732 demostró que, en esta plataforma, el costo dominante no es la medición sino el arranque del motor. Con un arranque de entre 29 y 75 minutos, un barrido que crea un motor por configuración no cabe en un trabajo de Slurm, por largo que sea su límite de tiempo. La decisión de la Sección~\ref{sec:cap2:metodologia} de levantar el servidor una sola vez y recorrer todas las configuraciones contra él pasa así de ser una optimización a ser una condición de viabilidad.
+El trabajo 30732 demostró que, en esta plataforma, el costo dominante no es la medición sino el arranque del motor. Con un arranque de entre 29 y 75 minutos, un barrido que crea un motor por configuración no cabe en un trabajo de Slurm, por largo que sea su límite de tiempo. El ajuste de la iteración 3 fue levantar el servidor una sola vez y recorrer todas las configuraciones contra él, una decisión que pasa así de ser una optimización a ser una condición de viabilidad.
 
-El script \texttt{a100\_qwen3\_8b.sh} materializa esa decisión. Solicita una A100 completa en la partición \texttt{gpu-dev}, levanta un único \texttt{vllm serve} con las mismas opciones de la Tabla~\ref{tab:cap3:trabajo}, espera hasta 45 minutos a que el endpoint \texttt{/health} responda y ejecuta después los experimentos con el cliente \texttt{tfgbench} en el mismo nodo, contra \texttt{127.0.0.1}. Al ejecutar el cliente y el servidor en el mismo nodo, el TTFT medido no incluye latencia de red. Tras cada experimento, el script guarda las métricas acumuladas de \texttt{/metrics}, que sostienen el tercer método de la triangulación de la Sección~\ref{sec:cap2:triangulacion}. Además, reduce el periodo de muestreo de la telemetría de 2~s a 1~s. La Tabla~\ref{tab:cap3:e1e2} resume los dos experimentos que el script ejecuta.
+Para ello se implementó el cliente \texttt{tfgbench}. Recibe un archivo TOML con la URL del servidor, el modelo, el tokenizador con su revisión y los niveles de cada variable; genera prompts de longitud exacta en tokens con ese tokenizador; envía las solicitudes en streaming, en bucle cerrado con como mucho $c$ solicitudes en vuelo para una concurrencia $c$; y guarda un JSON por configuración con el mismo formato que \texttt{vllm bench serve}, de modo que los resultados de ambas herramientas son comparables. Los prompts son secuencias aleatorias de identificadores de token, generadas con semilla 0 y sin prefijos compartidos, y las solicitudes se envían con temperatura 0 e \texttt{ignore\_eos}.
+
+El cliente se validó primero con un modelo pequeño en una partición MIG de 5~GB, que el planificador asigna sin espera. La Tabla~\ref{tab:cap3:piloto06} recoge ese piloto con Qwen3-0.6B. Sus cifras no se usan como resultados, porque el modelo y la GPU no son los del estudio, pero muestran que el cliente produce métricas coherentes: el TTFT crece con la entrada y con la concurrencia, y el TPOT crece con la concurrencia, como anticipa la Sección~\ref{sec:cap1:fases}.
 
 \begin{table}[htbp]
   \centering
-  \caption{Experimentos ejecutados por \texttt{a100\_qwen3\_8b.sh}.}
+  \caption{Validación del cliente \texttt{tfgbench} con Qwen3-0.6B en una partición MIG de 5~GB.}
+  \label{tab:cap3:piloto06}
+  \small
+  \begin{tabular}{|p{0.12\textwidth}|p{0.16\textwidth}|p{0.12\textwidth}|p{0.12\textwidth}|p{0.12\textwidth}|p{0.12\textwidth}|}
+    \hline
+    \textbf{Entrada (tokens)} & \textbf{Concu\-rrencia} & \textbf{TTFT p50 (ms)} & \textbf{TPOT p50 (ms)} & \textbf{ITL p99 (ms)} & \textbf{Salida (tok/s)} \\
+    \hline
+    128 & 1 & 18,9 & 8,3 & 11,0 & 118,5 \\
+    \hline
+    128 & 4 & 51,3 & 9,7 & 11,1 & 400,5 \\
+    \hline
+    1024 & 1 & 57,6 & 8,9 & 10,3 & 107,6 \\
+    \hline
+    1024 & 4 & 183,9 & 12,4 & 14,9 & 288,9 \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Corrida \texttt{piloto-mig-0.6b-20261027-155013}: salida 128 tokens, 8 solicitudes medidas y 2 de calentamiento por punto}
+
+El script \texttt{a100\_qwen3\_8b.sh} integra el servidor y el cliente en un trabajo de Slurm. Solicita una A100 completa en la partición \texttt{gpu-dev}, levanta un único \texttt{vllm serve} con las mismas opciones de la Tabla~\ref{tab:cap3:trabajo}, espera hasta 45 minutos a que el endpoint \texttt{/health} responda y ejecuta después los experimentos con \texttt{tfgbench} en el mismo nodo, contra \texttt{127.0.0.1}, según la disposición de la Sección~\ref{sec:cap2:conexion}. Tras cada experimento guarda las métricas acumuladas de \texttt{/metrics}, que sostienen el tercer método de la triangulación de la Sección~\ref{sec:cap2:triangulacion}, y reduce el periodo de muestreo de la telemetría de 2~s a 1~s. La Tabla~\ref{tab:cap3:e1e2} resume los dos experimentos que ejecuta.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Experimentos E1 y E2.}
   \label{tab:cap3:e1e2}
   \small
   \begin{tabular}{|p{0.22\textwidth}|p{0.34\textwidth}|p{0.34\textwidth}|}
@@ -111,10 +166,74 @@ El script \texttt{a100\_qwen3\_8b.sh} materializa esa decisión. Solicita una A1
 \elaboradopor{José Andrés Ureta Granda}
 \fuente{\texttt{configs/e1\_prefill.toml} y \texttt{configs/e2\_concurrencia.toml}}
 
-En ambos experimentos los prompts son secuencias aleatorias de identificadores de token de longitud exacta, generadas con semilla 0 y sin prefijos compartidos, y las solicitudes se envían con temperatura 0 e \texttt{ignore\_eos}. La longitud máxima de E1 es 7680 y no 8192, porque la suma de entrada y salida no puede superar el \texttt{max\_model\_len} de 8192. En E2, con 64 secuencias de 1280 tokens, el KV cache ocupa unos 11,3~GiB y cabe en la memoria disponible sin expulsiones, según el presupuesto de la Sección~\ref{sec:cap3:memoria}.
+La longitud máxima de E1 es 7680 y no 8192, porque la suma de entrada y salida no puede superar el \texttt{max\_model\_len} de 8192. En E2 con Qwen3-8B, 64 secuencias de 1280 tokens ocupan unos 11,3~GiB de KV cache y caben sin expulsiones en los 16,3~GiB disponibles, según la Sección~\ref{sec:cap3:memoria}. Con Qwen3-14B los mismos puntos se conservan, pero los de concurrencia 32 y 64 superan la memoria disponible, como calcula la Tabla~\ref{tab:cap2:factibilidad}. Para el modelo mayor se preparó un TOML equivalente que solo cambia el modelo y la revisión del tokenizador.
 
-El primer lanzamiento de este script, el trabajo 31157 del 27 de octubre, no llegó a medir. El servidor no respondió en los 45 minutos de espera, su registro quedó vacío y la GPU no llegó a ocupar memoria.
-% PENDIENTE: actualizar con el resultado del diagnóstico de los trabajos 31157 y 31299 y con la ejecución de E1 y E2.
+El primer lanzamiento de \texttt{a100\_qwen3\_8b.sh}, el trabajo 31157 del 27 de octubre, constituyó la iteración 4 y no llegó a medir. La preparación del entorno tardó 21~min 44~s, entre las 17:11:06 y las 17:32:50, y el servidor no respondió en los 45 minutos de espera siguientes; su registro quedó vacío y la GPU no llegó a ocupar memoria. Sin registro del servidor no fue posible diagnosticar la causa, y el ajuste fue el que recoge la Tabla~\ref{tab:cap2:iteraciones}: medir el tiempo de cada parte del arranque en los intentos siguientes.
+
+\subsection{Cambio a Qwen3-14B y diagnóstico de la sesión interactiva}
+\label{sec:cap3:cambio14b}
+
+El 29 de octubre, por indicación del tutor, el modelo principal pasó a ser Qwen3-14B en BF16. Se descargó la revisión \texttt{40c06982} a la caché de modelos y se preparó una versión del script de campaña para el nuevo modelo. Antes de lanzarla se intentó arrancar el servidor a mano en una sesión interactiva, el trabajo 31299, para observar el arranque en directo. Esa sesión constituye la iteración 5.
+
+La sesión obtuvo una A100 completa en \texttt{compute-0-2}, pero tras los primeros comandos la shell dejó de responder, incluso a órdenes triviales como \texttt{echo}. La lectura directa de \texttt{/proc} mostró un load average de 163,88 con solo 8 CPU asignadas al trabajo, una presión de CPU del 21~\% y ninguna presión de disco ni de memoria, de modo que no se trataba de un sistema de archivos colgado. La causa identificada fue el archivo \texttt{\textasciitilde/.bashrc}, que ejecutaba \texttt{spack load hwloc} en cada shell nueva; con el nodo sobrecargado, esa orden bloqueaba la apertura de cada shell. Se retiró del \texttt{.bashrc}, y la iteración dejó una regla para el resto del trabajo: los scripts de medición no dependen de la configuración interactiva del usuario.
+
+\subsection{Arranque de Qwen3-14B desde el NFS}
+\label{sec:cap3:arranque14b}
+
+La iteración 6, el 2 de noviembre, aisló el arranque. El script \texttt{ensayo.sh} levanta \texttt{vllm serve} con Qwen3-14B y las mismas opciones del piloto, espera hasta 90 minutos a \texttt{/health} y envía después una carga mínima de dos solicitudes. El entorno virtual y la caché de modelos se leyeron, como en el piloto, desde el NFS. La Tabla~\ref{tab:cap3:arranque14b} reconstruye el arranque a partir de \texttt{serve.log}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Cronología del arranque de \texttt{vllm serve} con Qwen3-14B desde el NFS (2 de noviembre).}
+  \label{tab:cap3:arranque14b}
+  \small
+  \begin{tabular}{|p{0.11\textwidth}|p{0.15\textwidth}|p{0.58\textwidth}|}
+    \hline
+    \textbf{Hora} & \textbf{Transcu\-rrido} & \textbf{Evento} \\
+    \hline
+    09:08:51 & 0:00 & Lanzamiento de \texttt{vllm serve} \\
+    \hline
+    09:28:20 & 19:29 & Primera línea del registro: versión de vLLM y argumentos \\
+    \hline
+    09:54:46 & 45:55 & Inicio del proceso del motor (\texttt{EngineCore}) \\
+    \hline
+    09:59:15 & 50:24 & Comienza la carga del modelo \\
+    \hline
+    10:01:20 & 52:29 & Selección del backend FlashAttention~2 \\
+    \hline
+    10:02:11 & 53:20 & vLLM detecta que el checkpoint, de 27,51~GiB, reside en NFS4 y lo precarga en la caché de páginas \\
+    \hline
+    10:03:46 & 54:55 & Precarga terminada en 95,08~s \\
+    \hline
+    10:04:02 & 55:11 & Pesos cargados en 110,48~s; el modelo ocupa 27,52~GiB de la GPU tras 285,9~s de carga \\
+    \hline
+    10:08:22 & 59:31 & \texttt{TimeoutError}: se superan los 600~s de \texttt{VLLM\_ENGINE\_READY\_TIMEOUT\_S} \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{\texttt{serve.log} y \texttt{ensayo.out} del ensayo \texttt{linea-base-home-20261102}}
+
+La cronología separa dos costos de naturaleza distinta. Los primeros 46 minutos transcurren antes de que exista el proceso del motor, sin tocar la GPU ni los pesos: corresponden a la importación de vLLM, PyTorch y sus dependencias, miles de archivos pequeños leídos desde el NFS por un nodo con alta carga. La lectura de los pesos, en cambio, es un único bloque de 27,5~GiB que el NFS sirvió en menos de dos minutos. El servidor llegó a tener el modelo en la GPU, pero el motor no completó la compilación y la captura de grafos dentro de los 600~s que vLLM concede por defecto, y el arranque se abandonó a los 59~min 31~s.
+
+El diagnóstico desplaza el problema: no está en la GPU ni en el tamaño del modelo, sino en el número de archivos del entorno y en dónde residen. Ese diagnóstico explica también, de forma retrospectiva, las esperas de 23 a 38 minutos sin registro del piloto 30732 y el registro vacío del trabajo 31157.
+
+\subsection{Copia del entorno al disco local}
+\label{sec:cap3:scratch}
+
+El ajuste de la iteración 7 fue ejecutar el servidor desde el disco local del nodo. El script \texttt{activar\_scratch.sh} copia la caché de modelos y el entorno virtual a \texttt{/scratch/\$USER/\$SLURM\_JOB\_ID}, adapta las rutas del entorno virtual a su nueva ubicación y lo activa desde la copia; \texttt{fase1\_preparar.sh} lo invoca y verifica que \texttt{import vllm} se resuelva desde \texttt{/scratch}. Los registros se escriben en el directorio personal, porque \texttt{/scratch} se borra al terminar el trabajo. La segunda fase, \texttt{fase2\_arranque.sh}, cronometra el arranque desde la copia con las mismas opciones del ensayo, espera hasta 15 minutos a \texttt{/health} y, si se excede, no detiene el servidor: lo informa y deja la decisión al investigador.
+
+La fase 1 se ejecutó dos veces, en ambos casos en \texttt{compute-0-1}. En el trabajo 32710, del 8 de noviembre, la caché de modelos se copió en 459~s, y el registro se interrumpe durante la copia del entorno virtual. En el trabajo 33107, del 11 de noviembre, la caché se copió en 414~s, pero del entorno virtual, de unos 12~GB, solo se habían copiado 1,2~GB a las 18:02, 71 minutos después de empezar, con un load average cercano a 790. La copia confirma el diagnóstico de la iteración 6 por otra vía: los pesos, pocos archivos grandes, se copian en unos 7 minutos, mientras que el entorno, muchos archivos pequeños, no avanza a un ritmo útil. La fase 2 no llegó a ejecutarse.
+% PENDIENTE: completar con la fase 2 cuando se reduzca el costo de la copia del entorno (p. ej., copiarlo empaquetado en un único archivo) y se mida el arranque desde /scratch.
+
+\subsection{Contraste con Ollama}
+\label{sec:cap3:ollama}
+
+Mientras la copia del entorno avanzaba, y dentro del mismo trabajo 33107, la iteración 8 midió un segundo servidor de inferencia, Ollama 0.24.0, para disponer de un contraste independiente de vLLM. Ollama se instaló en el directorio personal con la capa de compatibilidad CUDA 12.8, porque sus versiones más recientes exigen un driver superior al del nodo, y se ejecutó con una sola solicitud a la vez (\texttt{OLLAMA\_NUM\_PARALLEL=1}), escuchando en \texttt{127.0.0.1:11434}.
+
+El cliente \texttt{medir\_ollama.py} usa solo la biblioteca estándar de Python, conforme al requerimiento RNF7, y se conecta a la API nativa de Ollama según la Tabla~\ref{tab:cap2:api}. Para cada modelo registra primero el nodo, el trabajo, las versiones, los detalles del modelo, la memoria de la GPU y el load average. Después envía una solicitud mínima que obliga a cargar el modelo y la cronometra aparte. Para cada longitud de entrada ejecuta una solicitud de calentamiento y cinco medidas, con 128 tokens de salida, temperatura 0, semilla 0 y contexto de 8192 tokens. Cada prompt comienza con un prefijo único, formado por el índice de la solicitud y una marca de tiempo, para que el servidor no reutilice el KV cache de la anterior, como exige el RF7. El resultado se guarda en \texttt{datos.json} tras cada solicitud, de modo que una interrupción no pierde lo medido, y al final se agregan la mediana, la media, el percentil 90 y la desviación típica de cada métrica en \texttt{resumen.json}. El script \texttt{resumir.py} reúne todas las corridas en una tabla común.
+
+La longitud de entrada se controla en palabras y no en tokens, porque el cliente no carga el tokenizador; la longitud real en tokens la reporta el servidor en cada respuesta y es la que se usa en el análisis, según el RF3. Se midieron dos modelos de 30 mil millones de parámetros disponibles en el registro de Ollama: \texttt{qwen3-\allowbreak coder:\allowbreak 30b} y \texttt{nemotron-\allowbreak 3-\allowbreak nano:\allowbreak 30b}. El primero se midió completo; el segundo se invalidó, como explica la Sección~\ref{sec:cap3:validez-ollama}.
 
 \section{Pruebas y Validación}
 \label{sec:cap3:pruebas}
@@ -122,18 +241,18 @@ El primer lanzamiento de este script, el trabajo 31157 del 27 de octubre, no lle
 \subsection{Prueba de humo y verificación del dispositivo}
 \label{sec:cap3:humo}
 
-La prueba de humo cargó Qwen3-8B y generó 64 tokens de texto coherente en español a partir de un prompt sobre la inferencia de modelos de lenguaje. Su tiempo total, 13,77~s, incluye la primera ejecución del modelo y no se usa como medida de rendimiento. La prueba cumple su función: confirma que el entorno parcheado de la Sección~\ref{sec:cap2:parche} carga el modelo y genera texto antes de comprometer el resto del trabajo.
+La prueba de humo del trabajo 30732 cargó Qwen3-8B y generó 64 tokens de texto coherente en español a partir de un prompt sobre la inferencia de modelos de lenguaje. Su tiempo total, 13,77~s, incluye la primera ejecución del modelo y no se usa como medida de rendimiento. La prueba cumple su función: confirma que el entorno parcheado de la Sección~\ref{sec:cap2:parche} carga el modelo y genera texto antes de comprometer el resto del trabajo.
 
-El dispositivo se verificó con \texttt{nvidia-smi -L}, que identifica una A100-SXM4-40GB completa y no una instancia MIG, conforme a la precaución de la Sección~\ref{sec:cap2:diagnostico}. El backend de atención seleccionado fue FlashAttention-2, como anticipa la Sección~\ref{sec:cap2:versiones}.
+El dispositivo se verificó en todos los trabajos con \texttt{nvidia-smi -L}, que identifica una A100-SXM4-40GB completa y no una instancia MIG, conforme a la precaución de la Sección~\ref{sec:cap2:diagnostico}; en el trabajo 33107 lo confirmó también el propio Ollama, que detectó una GPU de capacidad de cómputo 8.0 con 40~GiB. El backend de atención seleccionado por vLLM fue FlashAttention-2 tanto con Qwen3-8B como con Qwen3-14B, como anticipa la Sección~\ref{sec:cap2:versiones}.
 
 \subsection{Estabilidad de las mediciones}
 \label{sec:cap3:estabilidad}
 
-La Tabla~\ref{tab:cap3:estabilidad} resume la dispersión de las diez iteraciones medidas en cada configuración. El coeficiente de variación no supera el 0,6~\%, y el rango completo de cada configuración es inferior a 1~ms. Con lote 1 y sin servidor, la medición es, por tanto, muy repetible dentro de un mismo trabajo.
+La Tabla~\ref{tab:cap3:estabilidad} resume la dispersión de las diez iteraciones medidas en cada configuración del piloto. El coeficiente de variación no supera el 0,6~\%, y el rango completo de cada configuración es inferior a 1~ms. Con lote 1 y sin servidor, la medición es, por tanto, muy repetible dentro de un mismo trabajo.
 
 \begin{table}[htbp]
   \centering
-  \caption{Dispersión de la latencia en las diez iteraciones medidas.}
+  \caption{Dispersión de la latencia en las diez iteraciones medidas del piloto con Qwen3-8B.}
   \label{tab:cap3:estabilidad}
   \small
   \begin{tabular}{|p{0.22\textwidth}|p{0.12\textwidth}|p{0.14\textwidth}|p{0.10\textwidth}|p{0.11\textwidth}|p{0.11\textwidth}|}
@@ -151,26 +270,37 @@ La Tabla~\ref{tab:cap3:estabilidad} resume la dispersión de las diez iteracione
 \elaboradopor{José Andrés Ureta Granda}
 \fuente{Archivos \texttt{lat\_in*\_out*\_bs1.json} del trabajo 30732}
 
-Las iteraciones de calentamiento confirman la necesidad de descartarlas. La primera de cada configuración tardó 25,2~s, 14,9~s y 33,5~s, respectivamente, entre 9 y 1500 veces más que la media de las iteraciones medidas, porque incluye la captura de grafos y la carga de kernels pendientes. Incluirla en la media habría invalidado la medición, como prevé el requerimiento RNF3.
+Las iteraciones de calentamiento confirman la necesidad de descartarlas. La primera de cada configuración tardó 25,2~s, 14,9~s y 33,5~s, respectivamente, entre 9 y 1500 veces más que la media de las iteraciones medidas, porque incluye la captura de grafos y la carga de kernels pendientes. Incluirla en la media habría invalidado la medición, como prevé el requerimiento RNF4.
 
 La baja dispersión no garantiza, sin embargo, la reproducibilidad entre trabajos. Las diez iteraciones de cada configuración se ejecutaron en menos de 20~s, dentro de un mismo motor y con una carga del nodo estable. La variación entre trabajos, nodos y versiones del driver, que la Sección~\ref{sec:cap2:control} identifica como la principal amenaza, solo podrá estimarse con repeticiones en trabajos distintos.
 
 \subsection{Contraste del presupuesto de memoria}
 \label{sec:cap3:memoria}
 
-Los registros de vLLM permiten contrastar el presupuesto analítico de la Sección~\ref{sec:cap2:techos}. Los pesos ocuparon 15,27~GiB, frente a los 15,3~GiB de la Ecuación~\ref{eq:cap2:pesos}. Con \texttt{gpu\_memory\_utilization} de 0,90, vLLM reservó 16,32~GiB para el KV cache, equivalentes a 118\,832 tokens, y 2,44~GiB para los grafos CUDA. El cociente entre ambas cifras del KV cache es de 147\,456~bytes por token, que coincide exactamente con la Ecuación~\ref{eq:cap2:kv-token}.
+Los registros de vLLM permiten contrastar el presupuesto analítico de la Sección~\ref{sec:cap2:techos}. Con Qwen3-8B, los pesos ocuparon 15,27~GiB, frente a los 15,3~GiB de la Ecuación~\ref{eq:cap2:pesos}. Con \texttt{gpu\_memory\_utilization} de 0,90, vLLM reservó 16,32~GiB para el KV cache, equivalentes a 118\,832 tokens, y 2,44~GiB para los grafos CUDA. El cociente entre ambas cifras del KV cache es de 147\,456~bytes por token, que coincide exactamente con la Ecuación~\ref{eq:cap2:kv-token}.
 
-El contraste revela que la configuración más exigente de la ficha no cabe en la GPU con estas opciones. Con 8192 tokens por solicitud, el KV cache disponible admite 14,51 secuencias simultáneas, según el propio registro de vLLM, y no las 16 que exige la ficha. En las ejecuciones posteriores, la reserva subió a 16,85~GiB y 122\,672 tokens, que admiten 14,97 secuencias, cifra que sigue por debajo de 16. El presupuesto de la Ecuación~\ref{eq:cap2:mem-total} era correcto en sus términos, pero omitía los 2,44~GiB de los grafos CUDA y el 10~\% de la memoria que vLLM deja sin reservar.
+El contraste revela que la configuración más exigente de la ficha no cabe en la GPU ni siquiera con el modelo piloto. Con 8192 tokens por solicitud, el KV cache disponible admite 14,51 secuencias simultáneas, según el propio registro de vLLM, y no las 16 que exige la ficha. En las ejecuciones posteriores, la reserva subió a 16,85~GiB y 122\,672 tokens, que admiten 14,97 secuencias, cifra que sigue por debajo de 16. El presupuesto de la Ecuación~\ref{eq:cap2:mem-total} era correcto en sus términos, pero omitía los 2,44~GiB de los grafos CUDA y el 10~\% de la memoria que vLLM deja sin reservar.
+
+Con Qwen3-14B, el ensayo de la iteración 6 aporta el primer término del presupuesto: los pesos ocuparon 27,52~GiB en la GPU, frente a los 27,6~GiB de la Ecuación~\ref{eq:cap2:pesos}. El arranque terminó antes de que vLLM reservara el KV cache, de modo que la estimación de unos 40\,000 tokens de la Ecuación~\ref{eq:cap2:kv-libre} sigue sin contrastarse. Ese contraste es la primera medición que producirá la fase 2.
 
 Este resultado cierra el primero de los huecos señalados en la Sección~\ref{sec:cap2:metodologia}. La combinación de 8192 tokens y concurrencia 16 solo sería ejecutable aumentando \texttt{gpu\_memory\_utilization}, desactivando los grafos CUDA con \texttt{-{}-enforce-eager} o aceptando que el planificador ponga solicitudes en espera. Cualquiera de las tres opciones altera lo que se mide, y por esa razón E1 limita la entrada a 7680 tokens con una sola solicitud, y E2 limita la entrada a 1024 tokens.
 % PENDIENTE: acordar con el tutor la sustitución del nivel 8192 x 16 de la ficha.
 
+\subsection{Validez de las mediciones con Ollama}
+\label{sec:cap3:validez-ollama}
+
+La medición de \texttt{qwen3-\allowbreak coder:\allowbreak 30b} cumple las condiciones de validez del protocolo: el modelo se cargó completo en la GPU, que pasó de 0 a 18\,951~MiB ocupados; las quince solicitudes medidas terminaron sin fallos y generaron los 128 tokens pedidos; y la dispersión fue baja. La desviación típica del TPOT reportado por el servidor no superó 0,07~ms en ningún punto, y la del prefill fue de 8,6~ms, 0,3~ms y 1,7~ms para las tres longitudes de entrada. La carga del modelo, cronometrada aparte, tardó 85,8~s, prácticamente todo leído desde el NFS.
+
+La medición de \texttt{nemotron-\allowbreak 3-\allowbreak nano:\allowbreak 30b}, lanzada a continuación sin reiniciar el servidor, se invalidó. Su registro muestra que Ollama no pudo refrescar la memoria libre de la GPU y usó un dato anterior, de 20,4~GiB libres, en el que aún figuraba el modelo previo. Con ese dato colocó solo 43 de las 53 capas en la GPU, 17,9~GiB, y 4,7~GiB en la CPU. La carga tardó 226,8~s, y la primera solicitud de calentamiento no había terminado 54 minutos después, con la GPU al 0~\% de utilización y un load average cercano a 790. Una medición con parte del modelo en la CPU no caracteriza la GPU, y por eso se descarta completa y no solo sus valores extremos. La regla derivada, reiniciar el servidor al cambiar de modelo, es el requerimiento RF8.
+
+La triangulación entre cliente y servidor detectó, por último, una discrepancia. El TTFT medido por el cliente superó al prefill reportado por Ollama en 0,96 a 2,41~s por solicitud, y en cada una de las quince solicitudes esa diferencia coincidió, con un margen de 10~ms, con el campo \texttt{load\_duration} de la respuesta, pese a que el modelo seguía cargado y la memoria de la GPU no cambió. El resto de la diferencia, unos milisegundos, corresponde a la red local y al cliente. El costo se origina, por tanto, en el servidor y antes del prefill, y su causa no está diagnosticada; una hipótesis compatible con los registros, pero no verificada, es la sobrecarga de CPU del nodo. En consecuencia, el TTFT de Ollama no se usa como medida del prefill, y en su lugar se usa la duración que reporta el servidor.
+
 \section{Resultados}
 \label{sec:cap3:resultados}
 
-Los resultados de esta sección proceden exclusivamente del barrido sin servidor del trabajo 30732, con lote $B=1$. Se calculan con el método de diferencia de latencias de la Sección~\ref{sec:cap2:triangulacion} y se contrastan con los techos teóricos de la Sección~\ref{sec:cap2:techos}.
+Los resultados disponibles proceden de dos fuentes: el barrido sin servidor del piloto con Qwen3-8B, con lote $B=1$, y la medición de contraste de \texttt{qwen3-\allowbreak coder:\allowbreak 30b} con Ollama. Los primeros se calculan con el método de diferencia de latencias de la Sección~\ref{sec:cap2:triangulacion} y se contrastan con los techos teóricos de la Sección~\ref{sec:cap2:techos}; los segundos se usan solo para contrastar tendencias.
 
-\subsection{Fase de prefill}
+\subsection{Fase de prefill con Qwen3-8B}
 \label{sec:cap3:prefill}
 
 La Tabla~\ref{tab:cap3:prefill} aplica las Ecuaciones~\ref{eq:cap2:tprefill} y~\ref{eq:cap2:xprefill} a las dos longitudes de entrada medidas. La columna de MFU (\textit{model FLOPs utilization}) expresa el throughput de prefill como fracción del techo de cómputo~\cite{chowdhery2023palm}, con la Ecuación~\ref{eq:cap3:mfu}, donde $P_{BF16}$ es el rendimiento BF16 denso de la A100 y $N$ el número de parámetros.
@@ -183,7 +313,7 @@ La Tabla~\ref{tab:cap3:prefill} aplica las Ecuaciones~\ref{eq:cap2:tprefill} y~\
 
 \begin{table}[htbp]
   \centering
-  \caption{Latencia y throughput de prefill con lote 1.}
+  \caption{Latencia y throughput de prefill de Qwen3-8B con lote 1.}
   \label{tab:cap3:prefill}
   \small
   \begin{tabular}{|p{0.16\textwidth}|p{0.22\textwidth}|p{0.26\textwidth}|p{0.18\textwidth}|}
@@ -211,7 +341,7 @@ El inverso de esa pendiente equivale a 19\,085~tok/s, prácticamente igual al te
 
 Con dos puntos no es posible separar el costo fijo de la variación de la eficiencia. Por esa razón, el experimento E1 mide siete longitudes entre 128 y 7680 tokens. El dato robusto de este piloto es la cota inferior: con 512 tokens, el prefill ya alcanza el 72~\% del techo de cómputo, lo que confirma que es una fase limitada por el cómputo.
 
-\subsection{Fase de decode}
+\subsection{Fase de decode con Qwen3-8B}
 \label{sec:cap3:decode}
 
 La Ecuación~\ref{eq:cap2:tpot} aplicada a la entrada de 128 tokens da un TPOT de 13,11~ms, equivalente a 76,3~tok/s por secuencia. Ese valor representa el 80~\% del techo de 95~tok/s de la Ecuación~\ref{eq:cap2:techo-decode}. La Ecuación~\ref{eq:cap3:mbu} expresa la misma relación como MBU (\textit{model bandwidth utilization}), la fracción del ancho de banda de la memoria que se aprovecha al leer los pesos en cada paso~\cite{agarwal2023llminference}.
@@ -224,7 +354,7 @@ La Ecuación~\ref{eq:cap2:tpot} aplicada a la entrada de 128 tokens da un TPOT d
 
 Un MBU del 80~\% indica que el decode con lote 1 está limitado por el ancho de banda de la memoria y opera cerca de su techo. El 20~\% restante corresponde a la lectura del KV cache, que la Ecuación~\ref{eq:cap2:techo-decode} ignora, y al sobrecosto por paso del motor, que no se puede separar con estos datos. La desviación típica de 0,31~ms sobre 1695~ms de la Tabla~\ref{tab:cap3:estabilidad} implica que el TPOT se conoce con una incertidumbre inferior a 0,01~ms.
 
-El TPOT de 512 tokens de entrada no se obtuvo porque la ejecución con $L_{out}=129$ no se completó. Por tanto, el piloto no permite observar cómo crece el TPOT con el contexto, que es el efecto esperado de la lectura del KV cache.
+El TPOT de 512 tokens de entrada no se obtuvo porque la ejecución con $L_{out}=129$ no se completó. Por tanto, el piloto no permite observar cómo crece el TPOT con el contexto, que es el efecto esperado de la lectura del KV cache. Si el MBU se mantiene en el mismo nivel con Qwen3-14B, la Ecuación~\ref{eq:cap2:techo-decode} anticipa para el modelo mayor un TPOT cercano a 24~ms con lote 1, una predicción que la campaña permitirá verificar.
 
 \subsection{Contraste entre fases}
 \label{sec:cap3:contraste}
@@ -233,7 +363,7 @@ Los dos resultados anteriores cuantifican la asimetría que motiva el trabajo. P
 
 \begin{table}[htbp]
   \centering
-  \caption{Comparación de las fases frente a sus techos teóricos ($L_{in}=128$, $B=1$).}
+  \caption{Comparación de las fases de Qwen3-8B frente a sus techos teóricos ($B=1$).}
   \label{tab:cap3:contraste}
   \small
   \begin{tabular}{|p{0.13\textwidth}|p{0.19\textwidth}|p{0.17\textwidth}|p{0.15\textwidth}|p{0.16\textwidth}|}
@@ -254,17 +384,87 @@ Las dos fases difieren en dos órdenes de magnitud en throughput por secuencia, 
 \subsection{Telemetría de la GPU}
 \label{sec:cap3:telemetria}
 
-La GPU ocupó como máximo 36\,799~MiB, el 90~\% de su memoria, conforme al valor de \texttt{gpu\_memory\_utilization}. En reposo, con la memoria vacía, la potencia media fue de 55,2~W. La potencia máxima, 268~W, se registró durante el calentamiento y la medición de la configuración con 129 tokens de salida, que es la única que mantuvo la GPU ocupada durante más de unos segundos.
+En el piloto, la GPU ocupó como máximo 36\,799~MiB, el 90~\% de su memoria, conforme al valor de \texttt{gpu\_memory\_utilization}. En reposo, con la memoria vacía, la potencia media fue de 55,2~W. La potencia máxima, 268~W, se registró durante el calentamiento y la medición de la configuración con 129 tokens de salida, que es la única que mantuvo la GPU ocupada durante más de unos segundos.
 
-La telemetría del trabajo 30732 no permite estimar la energía por token con la Ecuación~\ref{eq:cap2:etoken}. Con un muestreo cada 2~s, las mediciones de prefill, que duraron menos de medio segundo, no contienen ninguna muestra propia, y la de decode contiene unas ocho. Esta limitación motivó la reducción del periodo a 1~s en \texttt{a100\_qwen3\_8b.sh}. En E2, cuyos puntos duran varios minutos, ese periodo bastará para integrar la energía, pero en E1 seguirá siendo insuficiente.
+La telemetría del trabajo 30732 no permite estimar la energía por token con la Ecuación~\ref{eq:cap2:etoken}. Con un muestreo cada 2~s, las mediciones de prefill, que duraron menos de medio segundo, no contienen ninguna muestra propia, y la de decode contiene unas ocho. Esta limitación motivó la reducción del periodo a 1~s en los scripts posteriores. En E2, cuyos puntos duran varios minutos, ese periodo bastará para integrar la energía, pero en E1 seguirá siendo insuficiente.
 % PENDIENTE: valorar el contador de energía de NVML (nvmlDeviceGetTotalEnergyConsumption) para E1.
 
-\subsection{Alcance de los resultados piloto}
+\subsection{Contraste con Ollama}
+\label{sec:cap3:res-ollama}
+
+La Tabla~\ref{tab:cap3:ollama} recoge las medianas de las cinco solicitudes medidas de \texttt{qwen3-\allowbreak coder:\allowbreak 30b} en cada punto. El prefill y el TPOT son los que reporta el servidor, por la razón expuesta en la Sección~\ref{sec:cap3:validez-ollama}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Prefill y decode de \texttt{qwen3-\allowbreak coder:\allowbreak 30b} servido con Ollama (medianas, 128 tokens de salida).}
+  \label{tab:cap3:ollama}
+  \small
+  \begin{tabular}{|p{0.13\textwidth}|p{0.12\textwidth}|p{0.13\textwidth}|p{0.10\textwidth}|p{0.13\textwidth}|p{0.12\textwidth}|}
+    \hline
+    \textbf{Entrada (tokens)} & \textbf{Prefill (ms)} & \textbf{Prefill (tok/s)} & \textbf{TPOT (ms)} & \textbf{Decode (tok/s)} & \textbf{Latencia (s)} \\
+    \hline
+    195 & 100,1 & 1\,947 & 8,5 & 117,5 & 2,9 \\
+    \hline
+    717 & 270,2 & 2\,654 & 8,7 & 115,1 & 2,8 \\
+    \hline
+    2\,800 & 918,0 & 3\,050 & 9,1 & 109,7 & 4,0 \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Trabajo 33107 en \texttt{compute-0-1}, corrida del 11 de noviembre de 2026}
+
+Estas cifras no son comparables en valor absoluto con las de vLLM. El modelo es de tipo Mixture-of-Experts, con 30,5 mil millones de parámetros totales de los que solo una fracción se activa en cada token, y se sirve cuantizado a 4 bits en formato GGUF (\texttt{Q4\_K\_M}); ni el número de parámetros que se leen por paso ni los bytes por parámetro coinciden con los de un modelo denso en BF16. Por eso su TPOT, 8,5~ms, es menor que el de Qwen3-8B pese a tener casi cuatro veces más parámetros totales.
+
+Las tendencias, en cambio, sí son comparables, y confirman dos comportamientos del piloto. La primera es que el throughput de prefill crece con la entrada, de 1947 a 3050~tok/s entre 195 y 2800 tokens, igual que con Qwen3-8B crecía entre 128 y 512: el prefill aprovecha mejor la GPU cuanto más largo es el prompt. La segunda aporta lo que el piloto no pudo medir: el TPOT crece con el contexto, de 8,5 a 9,1~ms, un 7~\% al multiplicar la entrada por 14, lo que es coherente con un decode dominado por la lectura de los pesos en el que la lectura del KV cache añade un término pequeño y creciente. Ambas observaciones deberán verificarse con Qwen3-14B en vLLM.
+
+\subsection{Estado de la campaña con Qwen3-14B y alcance de los resultados}
 \label{sec:cap3:alcance}
 
-Los resultados de esta sección validan el método de diferencia de latencias y los techos teóricos, pero tienen un alcance limitado. Proceden de un único trabajo en un único nodo, con lote 1, dos longitudes de entrada y una de salida. Además, solo aplican el primero de los tres métodos de triangulación, porque la fase en línea no llegó a ejecutarse. Las métricas de cliente y las de \texttt{/metrics}, que permitirían contrastarlos, corresponden a los experimentos E1 y E2.
+La campaña con Qwen3-14B no ha producido todavía mediciones de rendimiento. Lo implementado y verificado para ella es lo siguiente: la revisión del modelo está descargada y congelada; el modelo carga en la GPU con el entorno de la Sección~\ref{sec:cap2:entorno} y ocupa 27,52~GiB; los experimentos E1 y E2 están configurados; y el arranque, que es el obstáculo, está diagnosticado y cronometrado por fases. Lo que falta es completar la iteración 7, es decir, reducir el costo de llevar el entorno al disco local y medir el arranque desde allí con \texttt{fase2\_arranque.sh}, y después ejecutar E1 y E2.
+% PENDIENTE: sustituir esta subsección por los resultados de E1 y E2 con Qwen3-14B.
+
+Los resultados de este capítulo validan el método de diferencia de latencias, los techos teóricos y los dos clientes de medición, pero tienen un alcance limitado. Los de Qwen3-8B proceden de un único trabajo en un único nodo, con lote 1, dos longitudes de entrada y una de salida, y solo aplican el primero de los tres métodos de triangulación. Los de Ollama aplican el segundo y el tercero, pero sobre un modelo y una representación numérica distintos de los del estudio. La aplicación de los tres métodos al mismo modelo, y con ella la respuesta a la pregunta del trabajo, corresponde a la campaña con Qwen3-14B.
 
 \section{Cronograma y Presupuesto}
 \label{sec:cap3:cronograma}
-% PENDIENTE: completar cuando se cierre la campaña.
-\textit{[Presentar la planificación de las fases de ejecución del proyecto y el detalle de los costos asociados a hardware, licencias, servicios u otros recursos.]}
+
+La Tabla~\ref{tab:cap3:cronograma} recoge el cronograma ejecutado hasta la fecha, ordenado según las iteraciones de la Tabla~\ref{tab:cap2:iteraciones}, y las actividades pendientes.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Cronograma ejecutado y pendiente.}
+  \label{tab:cap3:cronograma}
+  \small
+  \begin{tabular}{|p{0.20\textwidth}|p{0.50\textwidth}|p{0.18\textwidth}|}
+    \hline
+    \textbf{Periodo} & \textbf{Actividad} & \textbf{Estado} \\
+    \hline
+    8--20 oct 2026 & Especificación, modelo de datos y base del banco de pruebas & Completada \\
+    \hline
+    21--24 oct & Instalación del entorno y parche de glibc (iteración 1) & Completada \\
+    \hline
+    24 oct & Piloto con Qwen3-8B, trabajo 30732 (iteración 2) & Completada en parte \\
+    \hline
+    25--27 oct & Cliente \texttt{tfgbench} y validación en MIG (iteración 3) & Completada \\
+    \hline
+    27--29 oct & Campaña con Qwen3-8B y cambio a Qwen3-14B (iteraciones 4 y 5) & Sin medición \\
+    \hline
+    2 nov & Ensayo del arranque de Qwen3-14B desde el NFS (iteración 6) & Completada \\
+    \hline
+    8--11 nov & Copia del entorno a \texttt{/scratch} (iteración 7) & En curso \\
+    \hline
+    11 nov & Contraste con Ollama (iteración 8) & Completada \\
+    \hline
+    Por definir & Arranque desde \texttt{/scratch}, E1 y E2 con Qwen3-14B & Pendiente \\
+    \hline
+    Por definir & Análisis, modelo predictivo y cierre de la memoria & Pendiente \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Registros de los trabajos de Slurm y \texttt{ESTADO\_DEL\_PROYECTO.md}}
+% REVISAR: confirmar el periodo de especificación (SPEC.md v0.1 del 2026-10-08).
+
+% PENDIENTE: presupuesto. Detallar el costo de las horas de GPU (A100 en el HPC CEDIA, sin costo directo para el estudiante), del equipo personal y de las horas de trabajo, con el formato que indique la Facultad.
+\textit{[Presentar el detalle de los costos asociados a hardware, licencias, servicios u otros recursos.]}
