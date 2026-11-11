@@ -4,7 +4,7 @@
 \section{Diagnóstico de la Situación Actual}
 \label{sec:cap2:diagnostico}
 
-El método de este trabajo no se diseñó en abstracto, sino sobre una infraestructura concreta cuyas características imponen condiciones a la medición. Por esa razón, el capítulo parte de un diagnóstico de la plataforma disponible antes de describir el diseño experimental. Las limitaciones identificadas aquí reaparecen en las secciones siguientes como el porqué de buena parte de las decisiones metodológicas.
+El método de este trabajo no se diseñó en abstracto, sino sobre una infraestructura concreta cuyas características imponen condiciones a la medición. Por esa razón, el capítulo parte de un diagnóstico de la plataforma disponible antes de describir el método. Las limitaciones identificadas aquí reaparecen en las secciones siguientes como el porqué de buena parte de las decisiones metodológicas, y varias de ellas no se conocían al comenzar: se descubrieron al intentar medir, como describe la Sección~\ref{sec:cap2:metodologia}.
 
 La plataforma experimental es el clúster de computación de alto rendimiento de CEDIA (\texttt{hpc.cedia.edu.ec}), gestionado con el planificador de trabajos Slurm~\cite{yoo2003slurm}.
 Se eligió esta plataforma porque es la que ofrece acceso a la GPU NVIDIA A100 que fija el caso de estudio, y no por preferencia frente a otras infraestructuras. La Tabla~\ref{tab:cap2:plataforma} resume sus características. Los datos de rendimiento de la GPU proceden de la hoja de especificaciones del fabricante~\cite{nvidia2021a100}.
@@ -38,16 +38,16 @@ Se eligió esta plataforma porque es la que ofrece acceso a la GPU NVIDIA A100 q
     \hline
     Sistema operativo & Ubuntu 20.04.6, glibc 2.31 \\
     \hline
-    Almacenamiento de trabajo & NFS compartido (\texttt{\$HOME}) \\
+    Almacenamiento de trabajo & NFS compartido (\texttt{\$HOME}); disco local por trabajo en \texttt{/scratch} \\
     \hline
   \end{tabular}
 \end{table}
 \elaboradopor{José Andrés Ureta Granda}
 \fuente{Inspección de los nodos del clúster HPC CEDIA; hoja de especificaciones de la A100~\cite{nvidia2021a100}}
 
-La variante de la GPU es la A100-SXM4 de 40~GB, dato que la ficha institucional exige documentar porque la capacidad de memoria condiciona los niveles máximos de longitud de contexto y concurrencia. El sistema operativo de los nodos es Ubuntu 20.04.6, mientras que la ficha sugiere Ubuntu 22.04 o equivalente. La diferencia no es una elección del trabajo, sino una condición del clúster que no puede modificarse. Su consecuencia más importante es la versión de glibc, la 2.31, que origina el problema de compatibilidad tratado en la Sección~\ref{sec:cap2:parche}.
+La variante de la GPU es la A100-SXM4 de 40~GB, dato que la ficha institucional exige documentar porque la capacidad de memoria condiciona los niveles máximos de longitud de contexto y concurrencia. Esa capacidad pesa más con el modelo principal del trabajo, Qwen3-14B, cuyos pesos en BF16 ocupan 27,52~GiB según el registro del propio motor, es decir, cerca de dos tercios de la GPU. El sistema operativo de los nodos es Ubuntu 20.04.6, mientras que la ficha sugiere Ubuntu 22.04 o equivalente. La diferencia no es una elección del trabajo, sino una condición del clúster que no puede modificarse. Su consecuencia más importante es la versión de glibc, la 2.31, que origina el problema de compatibilidad tratado en la Sección~\ref{sec:cap2:parche}.
 
-El nodo interactivo ofrece particiones MIG (\textit{Multi-Instance GPU}), que dividen una A100 en instancias aisladas de menor capacidad. Estas particiones quedan excluidas de la campaña de medición por dos razones. La primera es que su memoria resulta insuficiente para alojar Qwen3-8B. La segunda es que NVML no expone la potencia por instancia MIG, lo que impediría atribuir el consumo energético que exige el tercer objetivo específico.\footnote{La documentación de NVML define \texttt{nvmlDeviceGetPowerUsage} y \texttt{nvmlDeviceGetTotalEnergyConsumption} sobre la GPU completa y sus circuitos asociados, sin declarar soporte para los manejadores de instancia MIG; en cambio, consultas como la de memoria sí indican que la información por instancia se obtiene con esos manejadores. NVIDIA, \textit{NVML API Reference Guide}, disponible en \url{https://docs.nvidia.com/deploy/nvml-api/}. Consultado el 24 de octubre de 2026.}
+El nodo interactivo ofrece particiones MIG (\textit{Multi-Instance GPU}), que dividen una A100 en instancias aisladas de menor capacidad. Estas particiones quedan excluidas de la campaña de medición por dos razones. La primera es que su memoria, de 5 o 10~GB, resulta insuficiente para alojar Qwen3-8B y, con mayor razón, Qwen3-14B; solo sirvieron para pruebas de humo con modelos pequeños. La segunda es que NVML no expone la potencia por instancia MIG, lo que impediría atribuir el consumo energético que exige el tercer objetivo específico.\footnote{La documentación de NVML define \texttt{nvmlDeviceGetPowerUsage} y \texttt{nvmlDeviceGetTotalEnergyConsumption} sobre la GPU completa y sus circuitos asociados, sin declarar soporte para los manejadores de instancia MIG; en cambio, consultas como la de memoria sí indican que la información por instancia se obtiene con esos manejadores. NVIDIA, \textit{NVML API Reference Guide}, disponible en \url{https://docs.nvidia.com/deploy/nvml-api/}. Consultado el 24 de octubre de 2026.}
 
 La exclusión de MIG obliga, además, a una precaución de identificación. En un trabajo asignado a una partición MIG, \texttt{nvidia-smi} muestra la A100 de 40~GB que la contiene y no la instancia efectiva. Por ello, el dispositivo real se identifica con \texttt{nvidia-smi -L}, \texttt{torch.cuda.\allowbreak get\_device\_name()} o \texttt{torch.cuda.\allowbreak mem\_get\_info()}, y no con la salida general de \texttt{nvidia-smi}.
 
@@ -75,7 +75,7 @@ El planificador impone los límites recogidos en la Tabla~\ref{tab:cap2:slurm}. 
 \elaboradopor{José Andrés Ureta Granda}
 \fuente{Configuración de Slurm del clúster HPC CEDIA}
 
-Dos limitaciones adicionales afectan directamente a la validez de las mediciones de latencia. La primera es que los nodos son compartidos con otros usuarios y su carga de CPU varía durante la ejecución, como se detalla en la Sección~\ref{sec:cap2:control}. La segunda es que los nodos GPU no comparten la misma versión del driver, según muestra la Tabla~\ref{tab:cap2:driver}. Como el planificador asigna el nodo en cada trabajo, dos mediciones de la misma configuración pueden ejecutarse con drivers distintos y no ser directamente comparables.
+Tres limitaciones adicionales afectan directamente a la validez y al costo de las mediciones. La primera es que los nodos son compartidos con otros usuarios y su carga de CPU varía durante la ejecución, como se detalla en la Sección~\ref{sec:cap2:control}. La segunda es que los nodos GPU no comparten la misma versión del driver, según muestra la Tabla~\ref{tab:cap2:driver}. Como el planificador asigna el nodo en cada trabajo, dos mediciones de la misma configuración pueden ejecutarse con drivers distintos y no ser directamente comparables. La tercera es que el entorno de software y los pesos del modelo residen en el NFS compartido, y su lectura desde los nodos resultó ser el costo dominante del arranque del servidor con Qwen3-14B, como cuantifica la Sección~\ref{sec:cap2:metodologia}.
 
 \begin{table}[htbp]
   \centering
@@ -98,13 +98,14 @@ Dos limitaciones adicionales afectan directamente a la validez de las mediciones
 \end{table}
 \elaboradopor{José Andrés Ureta Granda}
 \fuente{Registros \texttt{entorno.txt} de los trabajos ejecutados}
+% PENDIENTE: añadir el driver de los trabajos de noviembre (32710 y 33107, ambos en compute-0-1) cuando se recupere su entorno.txt.
 
-El diagnóstico deja establecidas, por tanto, las condiciones de partida: una A100 de 40~GB sin reserva exclusiva del nodo, un sistema operativo con glibc 2.31, un driver que puede cambiar entre ejecuciones y un único trabajo simultáneo. Antes de describir cómo se diseñó el experimento sobre esas condiciones, la Sección~\ref{sec:cap2:area} delimita el área de estudio.
+El diagnóstico deja establecidas, por tanto, las condiciones de partida: una A100 de 40~GB sin reserva exclusiva del nodo, un sistema operativo con glibc 2.31, un driver que puede cambiar entre ejecuciones, un almacenamiento compartido lento para archivos voluminosos y un único trabajo simultáneo. Antes de describir cómo se trabajó sobre esas condiciones, la Sección~\ref{sec:cap2:area} delimita el área de estudio.
 
 \section{Área de Estudio}
 \label{sec:cap2:area}
 
-La Tabla~\ref{tab:area_estudio} sitúa el trabajo en su dominio académico y precisa el objeto de estudio. Su contenido se deriva de la ficha institucional aprobada.
+La Tabla~\ref{tab:area_estudio} sitúa el trabajo en su dominio académico y precisa el objeto de estudio. Su contenido se deriva de la ficha institucional aprobada, con el cambio de modelo principal acordado con el tutor: Qwen3-14B pasa a ser el objeto de la campaña, y Qwen3-8B se conserva como piloto.
 
 \begin{table}[htbp]
   \centering
@@ -123,32 +124,74 @@ La Tabla~\ref{tab:area_estudio} sitúa el trabajo en su dominio académico y pre
     \hline
     \textbf{Área:} & Caracterización y modelado del rendimiento de la inferencia de LLM en GPU \\
     \hline
-    \textbf{Aspectos:} & Comportamiento de las fases prefill y decode; TTFT, TPOT, throughput, memoria, utilización y energía estimada; efecto de la cuantización, la longitud de contexto y la concurrencia \\
+    \textbf{Aspectos:} & Comportamiento de las fases prefill y decode; TTFT, TPOT, throughput, memoria, utilización y energía estimada; efecto de la longitud de contexto y la concurrencia \\
     \hline
-    \textbf{Objeto de estudio:} & Modelo Qwen3-8B servido con vLLM sobre una GPU NVIDIA A100-SXM4-40GB del clúster HPC CEDIA \\
+    \textbf{Objeto de estudio:} & Modelo Qwen3-14B en BF16 servido con vLLM sobre una GPU NVIDIA A100-SXM4-40GB del clúster HPC CEDIA, con Qwen3-8B como piloto de calibración \\
     \hline
-    % PENDIENTE: fijar el periodo de estudio cuando se cierre la campaña definitiva.
-    \textbf{Periodo de estudio:} & \textit{[Indique las fechas o el intervalo de tiempo que comprende el estudio.]} \\
+    % PENDIENTE: fijar la fecha de cierre cuando termine la campaña con Qwen3-14B.
+    \textbf{Periodo de estudio:} & Desde el 21 de octubre de 2026 (instalación del entorno) hasta el cierre de la campaña con Qwen3-14B \\
     \hline
   \end{tabular}
 \end{table}
 
-Con el objeto de estudio delimitado, la Sección~\ref{sec:cap2:metodologia} describe el método con que se caracteriza.
+El cambio de modelo responde a una indicación del tutor y tiene una razón técnica. Con Qwen3-14B los pesos ocupan la mayor parte de la memoria de la GPU, y el espacio restante para el KV cache se reduce a una fracción del que deja Qwen3-8B. El modelo mayor sitúa así la A100 de 40~GB cerca de su límite de memoria, que es precisamente la condición en la que la separación entre prefill y decode tiene más consecuencias prácticas. La Sección~\ref{sec:cap2:techos} cuantifica ese margen. Con el objeto de estudio delimitado, la Sección~\ref{sec:cap2:metodologia} describe el método con que se caracteriza.
 
 \section{Metodología de Desarrollo o Implementación}
 \label{sec:cap2:metodologia}
 
-El trabajo sigue un método experimental cuantitativo organizado en las tres fases que establece la ficha institucional: preparación del entorno, benchmark controlado e instrumentación. Se adoptó esa estructura porque la ficha es el documento normativo del trabajo y porque separa con claridad lo que debe congelarse, lo que se varía y lo que se mide. La preparación del entorno se desarrolla en la Sección~\ref{sec:cap2:diseno}. Esta sección describe cómo se organiza la medición y cómo las restricciones del clúster condicionaron su diseño.
+El trabajo sigue una metodología de prueba y error, de carácter iterativo, sobre la que se apoya la medición cuantitativa. Se adoptó porque el entorno no podía especificarse por completo de antemano: ni la documentación del clúster ni la de las herramientas anticipaban que la rueda de vLLM fallaría con glibc 2.31, que el arranque del servidor tardaría casi una hora desde el NFS o que un servidor alternativo calcularía mal la memoria libre. Cada uno de esos hechos se descubrió al intentar medir. Un plan cerrado habría fallado en el primero de ellos; un proceso iterativo convierte cada fallo en información para el intento siguiente.
 
-Las restricciones de Slurm determinaron tres decisiones de diseño. La primera es la ejecución secuencial de las configuraciones: con un único trabajo simultáneo, no es posible paralelizarlas entre GPU. La segunda es la elección de la partición \texttt{gpu-dev} en lugar de \texttt{gpu}. El 24 de octubre, \texttt{sbatch -{}-test-only} estimaba en \texttt{gpu} un inicio para el 31 de octubre pese a haber GPU libres, mientras que en \texttt{gpu-dev} la estimación era inmediata; \texttt{gpu-dev} ofrece, además, 4 días de tiempo máximo de ejecución frente a 2.
+Cada iteración consta de cuatro pasos. El primero es el \textbf{intento}: se ejecuta una configuración concreta, definida por el motor, el modelo, la partición y la ubicación del entorno y los pesos. El segundo es la \textbf{observación}: se registra qué se midió o en qué punto falló, siempre asociado al identificador del trabajo de Slurm que lo produjo. El tercero es el \textbf{diagnóstico}: se busca la causa en los registros y, cuando no se encuentra, se declara como no diagnosticada en lugar de suponerla. El cuarto es el \textbf{ajuste}: se modifica una sola cosa para el intento siguiente, de modo que el efecto del cambio pueda atribuirse a esa modificación.
 
-La tercera decisión es la reutilización del motor de inferencia. Arrancar vLLM con Qwen3-8B tiene un costo fijo elevado: en el trabajo 30732, la inicialización del motor tardó entre 4 y 24 minutos, dominada por la compilación con \texttt{torch.\allowbreak compile}, y cada ejecución completa costó entre 29 y 75 minutos, como detalla la Sección~\ref{sec:cap3:trabajo}. Reiniciar el motor para cada configuración multiplicaría ese costo por el número de configuraciones dentro de un único trabajo con tiempo limitado. Por ello, la fase en línea levanta el servidor una sola vez y recorre todas las configuraciones contra él.
+La prueba y error se aplica a la construcción del entorno y del protocolo, no a los datos. Una vez que una configuración funciona, la medición sigue un protocolo fijo con repeticiones, calentamiento descartado y registro de metadatos, descrito en la Sección~\ref{sec:cap2:tecnicas}. Ninguna medición se descarta por su valor; solo se invalida cuando el registro muestra una causa externa al fenómeno medido, como la descarga parcial del modelo a la CPU, y esa invalidación se declara junto con su motivo.
 
-La medición se automatiza con el script \texttt{bench\_pd.sh}, que organiza cada trabajo en las cinco fases de la Tabla~\ref{tab:cap2:fases}. Se automatizó todo el recorrido en un único script porque cada trabajo de Slurm debe ser autosuficiente: el investigador no interviene entre fases, y cualquier paso manual introduciría variaciones no registradas. Cada fase deja sus salidas en un directorio propio del trabajo, \texttt{resultados/}\textit{jobid}\texttt{/}, de modo que toda medición queda asociada al identificador del trabajo que la produjo.
+La Tabla~\ref{tab:cap2:iteraciones} recoge las iteraciones realizadas hasta la fecha. Su lectura en orden muestra cómo el método fue cambiando: de un barrido amplio con reinicio del motor por configuración a un servidor único con un cliente propio, de Qwen3-8B a Qwen3-14B, y del entorno en el NFS a su copia en el disco local del nodo.
 
 \begin{table}[htbp]
   \centering
-  \caption{Fases de ejecución de \texttt{bench\_pd.sh}.}
+  \caption{Iteraciones de prueba y error del trabajo.}
+  \label{tab:cap2:iteraciones}
+  \footnotesize
+  \begin{tabular}{|p{0.04\textwidth}|p{0.10\textwidth}|p{0.18\textwidth}|p{0.26\textwidth}|p{0.25\textwidth}|}
+    \hline
+    \textbf{N.\textsuperscript{o}} & \textbf{Fecha y trabajo} & \textbf{Intento} & \textbf{Observación y diagnóstico} & \textbf{Ajuste} \\
+    \hline
+    1 & 21--24 oct & Instalar vLLM 0.20.0 en un entorno Python & \texttt{ImportError}: la rueda pide \texttt{GLIBC\_2.34} y el nodo tiene 2.31; etiqueta de la rueda incorrecta & Parche \texttt{parche\_glibc.sh} (Sección~\ref{sec:cap2:parche}); prueba de humo superada \\
+    \hline
+    2 & 24 oct, 30732 & Barrido piloto de Qwen3-8B con \texttt{bench\_pd.sh} & Límite de 5~h alcanzado; la entrada de 128 tokens sola tardó $\approx$2,5~h. Medidas válidas solo con lote 1 & Reutilizar un único servidor y medir con un cliente propio \\
+    \hline
+    3 & 25--27 oct & Cliente \texttt{tfgbench} con Qwen3-0.6B en MIG de 5~GB & Piloto completo; el instrumento queda validado & Lanzar la campaña de Qwen3-8B con el cliente \\
+    \hline
+    4 & 27 oct, 31157 & Campaña de Qwen3-8B & El entorno tardó 21~min en prepararse y \texttt{vllm serve} no escribió nada en 45~min; sin diagnóstico & Registrar los tiempos del arranque \\
+    \hline
+    5 & 29 oct, 31299 & Cambio a Qwen3-14B por indicación del tutor & Sesión interactiva colgada: \texttt{spack load hwloc} en \texttt{.bashrc} & Corregido el \texttt{.bashrc} \\
+    \hline
+    6 & 2 nov & Línea base del arranque de Qwen3-14B desde el NFS & Terminó a los 59~min 31~s por el límite interno de vLLM, 4~min 20~s después de cargar los pesos & Copiar el entorno y los pesos a \texttt{/scratch} \\
+    \hline
+    7 & 8 y 11 nov, 32710 y 33107 & Copia del entorno a \texttt{/scratch} & Pesos copiados en 459~s y 414~s; del entorno virtual (12~GB) solo 1,2~GB en 71~min, con load average $\approx$790 & Pendiente: reducir el costo de la copia del entorno \\
+    \hline
+    8 & 11 nov, 33107 & Contraste con Ollama 0.24.0 & \texttt{qwen3-coder:30b} medido; \texttt{nemotron-3-nano:30b} cargado en parte en CPU por una lectura desactualizada de la memoria libre & Reiniciar el servidor entre modelos \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Registros de los trabajos de Slurm y \texttt{RESUMEN\_TESIS.md}}
+
+La iteración 2 fijó la decisión metodológica más importante: reutilizar el motor de inferencia. Arrancar vLLM tiene un costo fijo elevado: en el trabajo 30732, la inicialización del motor con Qwen3-8B tardó entre 4 y 24 minutos, dominada por la compilación con \texttt{torch.\allowbreak compile}, y cada ejecución completa costó entre 29 y 75 minutos, como detalla la Sección~\ref{sec:cap3:trabajo}. Reiniciar el motor para cada configuración multiplicaría ese costo por el número de configuraciones dentro de un único trabajo con tiempo limitado. Por ello, a partir de la iteración 3 el servidor se levanta una sola vez y un cliente propio recorre todas las configuraciones contra él.
+
+La iteración 6 mostró que, con Qwen3-14B, el arranque es en sí mismo un problema de medición. El registro del servidor permite descomponer los 59~min 31~s del intento. Pasaron 19~min 29~s entre el lanzamiento y la primera línea de registro de vLLM, tiempo que corresponde a la importación de la pila de Python desde el NFS. El proceso del motor no se inició hasta 26 minutos después. La lectura de los 27,51~GiB de pesos, también desde el NFS, se completó en 110~s, y el modelo quedó cargado en la GPU a los 285,9~s de empezar esa fase. Cuatro minutos y veinte segundos después, el servidor abandonó el arranque con un \texttt{TimeoutError}, porque había superado los 600~s que concede por defecto la variable \texttt{VLLM\_ENGINE\_READY\_TIMEOUT\_S} para que el motor esté listo. El diagnóstico es que el cuello de botella no está en la GPU, sino en la lectura de miles de archivos pequeños desde el almacenamiento compartido.
+
+De ese diagnóstico se derivan las dos líneas de ajuste en curso. La primera, ensayada en la iteración 7, es copiar el entorno virtual y la caché de modelos al disco local del nodo antes de arrancar. La copia de los pesos funcionó en unos 7 minutos, pero la del entorno virtual no avanzó a un ritmo útil con el nodo sobrecargado, lo que confirma que el costo está en el número de archivos y no en su volumen. La segunda es elevar el límite de arranque de vLLM y cronometrar por separado cada fase del arranque con el script \texttt{fase2\_arranque.sh}, que espera hasta 15 minutos a que el servidor responda y no lo detiene si se excede, para que la decisión de continuar quede en manos del investigador.
+
+La iteración 8 introdujo un segundo servidor de inferencia, Ollama, como contraste. Ollama sirve modelos cuantizados en formato GGUF y expone en cada respuesta la duración de su prefill y de su decode, lo que ofrece una perspectiva independiente de las dos fases. Se usó la versión 0.24.0 porque las versiones a partir de la 0.30 exigen un driver 550 o superior, por encima del 535 del nodo. Sus resultados no sustituyen a la campaña con vLLM: comparten la GPU y el protocolo, pero no el modelo ni la representación numérica, de modo que solo se usan para contrastar tendencias. La iteración dejó, además, una regla operativa: entre dos modelos, el servidor debe reiniciarse, porque con un dato de memoria libre desactualizado repartió el segundo modelo entre la GPU y la CPU, y esa medición tuvo que invalidarse.
+
+Las restricciones de Slurm, por su parte, determinaron dos decisiones que se mantienen en todas las iteraciones. La primera es la ejecución secuencial de las configuraciones: con un único trabajo simultáneo, no es posible paralelizarlas entre GPU. La segunda es la elección de la partición \texttt{gpu-dev} en lugar de \texttt{gpu}. El 24 de octubre, \texttt{sbatch -{}-test-only} estimaba en \texttt{gpu} un inicio para el 31 de octubre pese a haber GPU libres, mientras que en \texttt{gpu-dev} la estimación era inmediata; \texttt{gpu-dev} ofrece, además, 4 días de tiempo máximo de ejecución frente a 2.
+
+Cada trabajo de medición se organiza en las fases de la Tabla~\ref{tab:cap2:fases}. Se automatizó todo el recorrido porque cada trabajo de Slurm debe ser autosuficiente: el investigador no interviene entre fases, y cualquier paso manual introduciría variaciones no registradas. Cada fase deja sus salidas en un directorio propio del trabajo, de modo que toda medición queda asociada al identificador del trabajo que la produjo. Las fases son las mismas que estableció \texttt{bench\_pd.sh} en la iteración 2, con dos cambios aprendidos después: la preparación del entorno en el disco local y el cronometraje del arranque como fase propia.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Fases de un trabajo de medición.}
   \label{tab:cap2:fases}
   \small
   \begin{tabular}{|p{0.07\textwidth}|p{0.45\textwidth}|p{0.38\textwidth}|}
@@ -157,50 +200,48 @@ La medición se automatiza con el script \texttt{bench\_pd.sh}, que organiza cad
     \hline
     0 & Registro del nodo, la GPU, las versiones y la carga; arranque del monitor de telemetría & \texttt{entorno.txt}, \texttt{gpu\_monitor.csv} \\
     \hline
-    1 & Prueba de humo con el modelo objetivo & \texttt{smoke.txt}, \texttt{smoke.err} \\
+    1 & Copia del entorno y de los pesos a \texttt{/scratch} y verificación de la importación de vLLM & Registro de la fase 1 \\
     \hline
-    2 & Barrido sin servidor (\texttt{vllm bench latency}) & \texttt{lat\_in*\_out*\_bs*.json} \\
+    2 & Arranque del servidor, cronometrado hasta que \texttt{/health} responde & \texttt{serve.log}, tiempo de arranque \\
     \hline
-    3 & Barrido en línea (\texttt{vllm serve} y \texttt{vllm bench serve}) & \texttt{serve\_in*\_out*\_c*.json}, \texttt{metrics\_servidor.txt} \\
+    3 & Barrido en línea con el cliente contra el servidor único & Un archivo JSON por configuración; \texttt{/metrics} del servidor \\
     \hline
-    4 & Agregación y tablas & \texttt{RESUMEN.md} \\
+    4 & Agregación y tablas & Resumen en JSON y Markdown \\
     \hline
   \end{tabular}
 \end{table}
 \elaboradopor{José Andrés Ureta Granda}
-\fuente{Elaboración propia a partir de \texttt{bench\_pd.sh}}
+\fuente{Elaboración propia a partir de \texttt{bench\_pd.sh}, \texttt{fase1\_preparar.sh} y \texttt{fase2\_arranque.sh}}
 
-El orden de las fases responde a un criterio de economía del tiempo de GPU. La fase 0 registra el entorno antes de medir, porque el driver y la carga del nodo pueden cambiar entre trabajos. La fase 1 verifica que el modelo carga y genera texto antes de comprometer el resto del tiempo asignado, de modo que un fallo del entorno se detecta antes de invertir horas de GPU en un barrido inválido. Las fases 2 y 3 aportan dos perspectivas complementarias de la misma medición, que la Sección~\ref{sec:cap2:tecnicas} explica.
+El orden de las fases responde a un criterio de economía del tiempo de GPU. La fase 0 registra el entorno antes de medir, porque el driver y la carga del nodo pueden cambiar entre trabajos. Las fases 1 y 2 verifican que el entorno y el servidor funcionan antes de comprometer el resto del tiempo asignado, de modo que un fallo se detecta antes de invertir horas de GPU en un barrido inválido. Esa separación es también una lección de las iteraciones 4 y 6, en las que el tiempo se perdió en el arranque sin que quedara registro de en qué parte.
 
-El barrido implementado tiene carácter de barrido piloto y no reproduce todavía la matriz de la ficha. La ficha prevé este paso en la mitigación de su riesgo R6: ejecutar un piloto que cronometre cada configuración y renegociar la matriz con el tutor a partir de ese dato. La Tabla~\ref{tab:cap2:divergencias} declara todas las divergencias entre ambas matrices. El piloto explora un espacio más amplio en longitud de entrada y concurrencia para calibrar la matriz definitiva, que se acordará por escrito con el tutor antes de la campaña.
+La matriz experimental tampoco quedó fijada de antemano: se calibra con los pilotos, tal como prevé la ficha en la mitigación de su riesgo R6, que propone ejecutar un piloto, cronometrar cada configuración y renegociar la matriz con el tutor a partir de ese dato. La Tabla~\ref{tab:cap2:divergencias} compara la matriz de la ficha con el piloto ejecutado con Qwen3-8B y con los barridos preparados para Qwen3-14B: el experimento E1, dedicado al prefill, y el experimento E2, dedicado al decode por lotes.
 
 \begin{table}[htbp]
   \centering
-  \caption{Divergencias entre la matriz de la ficha y el barrido piloto implementado.}
+  \caption{Matriz de la ficha, piloto con Qwen3-8B y barridos preparados para Qwen3-14B.}
   \label{tab:cap2:divergencias}
-  \small
-  \begin{tabular}{|p{0.22\textwidth}|p{0.30\textwidth}|p{0.38\textwidth}|}
+  \footnotesize
+  \begin{tabular}{|p{0.16\textwidth}|p{0.20\textwidth}|p{0.24\textwidth}|p{0.26\textwidth}|}
     \hline
-    \textbf{Variable} & \textbf{Ficha aprobada} & \textbf{Barrido piloto (\texttt{bench\_pd.sh})} \\
+    \textbf{Variable} & \textbf{Ficha aprobada} & \textbf{Piloto Qwen3-8B (30732)} & \textbf{Qwen3-14B (E1 y E2)} \\
     \hline
-    Variante numérica & BF16 y AWQ INT4 & Solo BF16 \\
+    Variante numérica & BF16 y AWQ INT4 & BF16 & BF16 \\
     \hline
-    Longitud de entrada & 128, 512, 2048 y 8192 & 128, 512, 1024, 2048 y 4096 \\
+    Longitud de entrada & 128, 512, 2048 y 8192 & 128, 512, 1024, 2048 y 4096 & E1: 128 a 7680 en 7 puntos; E2: 1024 \\
     \hline
-    Longitud de salida & 64 y 256 & 1 y 129 (sin servidor); 128 y 256 (en línea) \\
+    Longitud de salida & 64 y 256 & 1 y 129 (sin servidor) & E1: 128; E2: 256 \\
     \hline
-    Concurrencia & 1, 4, 8 y 16 & 1, 2, 4, 8, 16, 32 y 64 \\
+    Concurrencia & 1, 4, 8 y 16 & 1 (medidas válidas) & E1: 1; E2: 1 a 64 en 7 puntos \\
     \hline
-    Repeticiones & 5 & 10 iteraciones (sin servidor) \\
+    Repeticiones & 5 & 10 iteraciones & E1: 30 + 3 de calentamiento; E2: 256 solicitudes + 4 \\
     \hline
   \end{tabular}
 \end{table}
 \elaboradopor{José Andrés Ureta Granda}
-\fuente{Ficha institucional ITI-TFG-B26-0017 y \texttt{bench\_pd.sh}}
+\fuente{Ficha institucional ITI-TFG-B26-0017; \texttt{bench\_pd.sh}; \texttt{e1\_prefill.toml} y \texttt{e2\_concurrencia.toml}}
 
-Dos de esas divergencias son huecos que el piloto debe cerrar antes de fijar la matriz. El primero es el escenario de 8192 tokens, que no se mide. Es la configuración límite en memoria, según el cálculo de la Sección~\ref{sec:cap2:techos}, y por tanto la que decide si la matriz de la ficha es ejecutable en una A100 de 40~GB; puede exigir, además, desactivar los grafos CUDA con \texttt{-{}-enforce-eager}. El segundo hueco es la variante AWQ INT4~\cite{lin2024awq}, que constituye la mitad de la comparación exigida por el objetivo general y cuyo riesgo asociado, la disponibilidad y fiabilidad de un checkpoint cuantizado, sigue abierto.
-
-Quedan otras dos decisiones pendientes que la memoria declara en lugar de omitir. La ficha prevé aleatorizar el orden de las configuraciones para reducir el efecto de la temperatura, la caché y el estado previo del sistema, y el material del piloto no documenta esa aleatorización; la campaña definitiva deberá incorporarla. Por otra parte, el riesgo R4 de la ficha advierte que el chunked prefill puede mezclar ambas fases en un mismo lote~\cite{agrawal2024sarathi}, y la decisión de desactivarlo o documentarlo sigue abierta. Con la organización de la medición descrita, la Sección~\ref{sec:cap2:tecnicas} precisa qué se mide y con qué instrumentos.
+Tres divergencias siguen abiertas y la memoria las declara en lugar de omitirlas. La primera es la variante AWQ INT4~\cite{lin2024awq}, que constituye la mitad de la comparación prevista en la ficha y que ninguna iteración ha abordado todavía. La segunda es la concurrencia máxima de E2: con Qwen3-14B, el cálculo de la Sección~\ref{sec:cap2:techos} indica que 32 y 64 secuencias de 1280 tokens no caben en el KV cache disponible, de modo que esos puntos medirán la espera o la expulsión de solicitudes además del decode. La tercera es el chunked prefill, que puede mezclar ambas fases en un mismo lote~\cite{agrawal2024sarathi}, según advierte el riesgo R4 de la ficha; la decisión de desactivarlo o documentarlo sigue pendiente. La ficha prevé, además, aleatorizar el orden de las configuraciones, y la campaña con Qwen3-14B deberá incorporarlo. Con la organización de la medición descrita, la Sección~\ref{sec:cap2:tecnicas} precisa qué se mide y con qué instrumentos.
 
 \section{Técnicas e Instrumentos de Recolección de Información}
 \label{sec:cap2:tecnicas}
@@ -210,7 +251,7 @@ La técnica central del trabajo es la medición instrumentada de la inferencia. 
 \subsection{Triangulación de la separación prefill/decode}
 \label{sec:cap2:triangulacion}
 
-El primer método obtiene las fases por diferencia de latencias en el modo sin servidor, con \texttt{vllm bench latency}. Con una longitud de salida de un token, el tiempo medido corresponde esencialmente al prefill; con 129 tokens, se añaden 128 pasos de decode. Se eligió la salida de 129 tokens para que la diferencia contenga exactamente 128 pasos de decode. Las Ecuaciones~\ref{eq:cap2:tprefill} a~\ref{eq:cap2:tpot} formalizan el procedimiento, donde $T(n)$ es la latencia medida con $n$ tokens de salida, $L_{in}$ la longitud de entrada y $B$ el tamaño de lote.
+El primer método obtiene las fases por diferencia de latencias en el modo sin servidor, con \texttt{vllm bench latency}. Con una longitud de salida de un token, el tiempo medido corresponde esencialmente al prefill; con 129 tokens, se añaden 128 pasos de decode. Se eligió la salida de 129 tokens para que la diferencia contenga exactamente 128 pasos de decode. Las Ecuaciones~\ref{eq:cap2:tprefill} a~\ref{eq:cap2:tpot} formalizan el procedimiento, donde $T(n)$ es la latencia medida con $n$ tokens de salida, $L_{in}$ la longitud de entrada y $B$ el tamaño de lote. Este método se aplicó en el piloto con Qwen3-8B; con Qwen3-14B, el costo del arranque hace preferible medir siempre contra un servidor ya levantado.
 
 \begin{equation}
 \label{eq:cap2:tprefill}
@@ -232,14 +273,16 @@ X_{prefill} = \frac{L_{in} \times B}{T(1)}
 
 La ventaja de este método es que aísla las fases sin instrumentación interna del motor. Su limitación es que $T(1)$ no es prefill puro: incluye una pequeña fracción de decode y el sobrecoste de arranque de la iteración. Por ello, la Ecuación~\ref{eq:cap2:tprefill} es una aproximación y su error debe contrastarse con los otros dos métodos.
 
-El segundo método recoge las métricas de cliente en el modo en línea, con \texttt{vllm bench serve} contra un servidor \texttt{vllm serve}. La herramienta reporta el TTFT, el TPOT y el ITL (\textit{inter-token latency}, latencia entre tokens consecutivos) con los percentiles 50, 90 y 99. Se ejecuta con la opción \texttt{-{}-ignore-eos} para que cada solicitud genere la longitud de salida pedida aunque el modelo emita antes el token de fin de secuencia; sin ella, solicitudes de la misma configuración tendrían longitudes distintas y su TPOT no sería comparable. Este método ofrece la perspectiva del usuario, y su limitación es que el TTFT incluye el tiempo de espera en cola del servidor, además del prefill.
+El segundo método recoge las métricas de cliente en el modo en línea, contra un servidor \texttt{vllm serve}. El cliente propio \texttt{tfgbench}, cuya salida es compatible con la de \texttt{vllm bench serve}, envía cada solicitud en streaming y marca el instante en que llega cada fragmento de texto; de esas marcas obtiene el TTFT, el TPOT y el ITL (\textit{inter-token latency}, latencia entre tokens consecutivos). Cada solicitud genera exactamente la longitud de salida pedida, con la opción \texttt{ignore\_eos}, aunque el modelo emita antes el token de fin de secuencia; sin ella, solicitudes de la misma configuración tendrían longitudes distintas y su TPOT no sería comparable. Este método ofrece la perspectiva del usuario, y su limitación es que el TTFT incluye el tiempo de espera en cola del servidor, además del prefill.
 
-El tercer método lee las métricas internas del servidor en el endpoint \texttt{/metrics} de vLLM. Los histogramas \texttt{request\_\allowbreak prefill\_\allowbreak time\_\allowbreak seconds} y \texttt{request\_\allowbreak decode\_\allowbreak time\_\allowbreak seconds} separan las fases según la contabilidad interna del motor. Es la medida más directa y por eso sirve de referencia para validar los dos métodos anteriores. Su limitación es que depende de cómo el motor define el inicio y el fin de cada fase, definición que no es observable desde fuera y que puede variar entre versiones de vLLM.\footnote{Las opciones de \texttt{vllm bench serve} (\texttt{-{}-ignore-eos}, \texttt{-{}-metric-percentiles}) y los histogramas \texttt{vllm:request\_prefill\_time\_seconds} y \texttt{vllm:request\_decode\_time\_seconds} se documentan en el código fuente de vLLM~0.20.0 (\texttt{vllm/benchmarks/serve.py} y \texttt{vllm/v1/metrics/loggers.py}), disponible en \url{https://github.com/vllm-project/vllm/tree/v0.20.0}. Consultado el 24 de octubre de 2026.}
+El tercer método lee las métricas internas del servidor. En vLLM se obtienen del endpoint \texttt{/metrics}, cuyos histogramas \texttt{request\_\allowbreak prefill\_\allowbreak time\_\allowbreak seconds} y \texttt{request\_\allowbreak decode\_\allowbreak time\_\allowbreak seconds} separan las fases según la contabilidad interna del motor. En Ollama, el equivalente son los campos \texttt{prompt\_eval\_duration} y \texttt{eval\_duration} que acompañan a la última respuesta de cada solicitud. Es la medida más directa y por eso sirve de referencia para validar los dos métodos anteriores. Su limitación es que depende de cómo cada motor define el inicio y el fin de cada fase, definición que no es observable desde fuera y que puede variar entre versiones.\footnote{Las opciones de \texttt{vllm bench serve} (\texttt{-{}-ignore-eos}, \texttt{-{}-metric-percentiles}) y los histogramas \texttt{vllm:request\_prefill\_time\_seconds} y \texttt{vllm:request\_decode\_time\_seconds} se documentan en el código fuente de vLLM~0.20.0 (\texttt{vllm/benchmarks/serve.py} y \texttt{vllm/v1/metrics/loggers.py}), disponible en \url{https://github.com/vllm-project/vllm/tree/v0.20.0}. Consultado el 24 de octubre de 2026. Los campos de duración de Ollama se describen en la documentación de su API, disponible en \url{https://github.com/ollama/ollama/blob/main/docs/api.md}. Consultado el 11 de noviembre de 2026.}
+
+La triangulación ya produjo un hallazgo en la iteración 8. Con Ollama, el TTFT medido en el cliente superó al prefill reportado por el servidor en 1,0 a 2,4~s por solicitud, una diferencia que coincide con el campo \texttt{load\_duration} que el servidor reporta en cada solicitud aunque el modelo ya esté cargado en la GPU. La red y el cliente aportan alrededor de 1~ms, de modo que la diferencia se origina en el servidor; su causa no está diagnosticada. Sin el contraste entre el método 2 y el método 3, ese costo habría quedado atribuido al prefill.
 
 \subsection{Telemetría, energía y control de la contención}
 \label{sec:cap2:control}
 
-La telemetría de la GPU se registra con un monitor de \texttt{nvidia-smi} que muestrea cada 2~s durante toda la ejecución y escribe \texttt{gpu\_monitor.csv}. Se recurrió a \texttt{nvidia-smi} porque está disponible en los nodos y expone la memoria, la utilización, la temperatura y la potencia que exige el tercer objetivo específico. La ficha prevé DCGM para la campaña principal y Nsight Systems solo en un subconjunto representativo, por el volumen de datos y el sobrecoste del perfilado.
+La telemetría de la GPU se registra con un monitor de \texttt{nvidia-smi} que muestrea durante toda la ejecución y escribe \texttt{gpu\_monitor.csv}. Se recurrió a \texttt{nvidia-smi} porque está disponible en los nodos y expone la memoria, la utilización, la temperatura y la potencia que exige el tercer objetivo específico. La ficha prevé DCGM para la campaña principal y Nsight Systems solo en un subconjunto representativo, por el volumen de datos y el sobrecoste del perfilado.
 
 La energía se calculará a partir de esa telemetría con las Ecuaciones~\ref{eq:cap2:energia} y~\ref{eq:cap2:etoken}, definidas en la ficha. En ellas, $P_i$ es la potencia de la muestra $i$, $\Delta t$ el periodo de muestreo, $E_{idle}$ la energía consumida en reposo durante el mismo intervalo y $N_{tokens}$ el número de tokens generados. La energía así obtenida es una estimación basada en la telemetría interna de la GPU y no una medición eléctrica calibrada externamente. La ventana de integración y la medición de $E_{idle}$ en cada campaña quedan por fijar en el protocolo de energía.
 
@@ -255,16 +298,16 @@ E_{token} = \frac{E_{ejecucion} - E_{idle}}{N_{tokens}}
 \end{equation}
 \addeqtolist{Energía estimada por token generado}
 
-La contención del nodo es una variable de confusión, porque el TTFT y el TPOT dependen de que la CPU alimente a la GPU sin demora. Su magnitud quedó documentada durante la preparación: el 22 de octubre a las 19:34, \texttt{compute-0-2} registraba un load average de 317,33, 337,72 y 214,73 en las ventanas de 1, 5 y 15 minutos, sobre 256 núcleos. Esa carga equivale a una sobresuscripción de 1,24 veces en la ventana de un minuto y de 1,32 veces en la de cinco, frente a 0,84 veces quince minutos antes. La carga se duplicó, por tanto, mientras el trabajo estaba en ejecución, y nada garantiza que no vuelva a ocurrir.
+La contención del nodo es una variable de confusión, porque el TTFT y el TPOT dependen de que la CPU alimente a la GPU sin demora. Su magnitud quedó documentada desde la preparación: el 22 de octubre a las 19:34, \texttt{compute-0-2} registraba un load average de 317,33, 337,72 y 214,73 en las ventanas de 1, 5 y 15 minutos, sobre 256 núcleos, es decir, una sobresuscripción de 1,24 veces en la ventana de un minuto. En noviembre la situación empeoró: el 11 de noviembre, \texttt{compute-0-1} pasó de un load average de 260--380 durante la medición con Ollama a cerca de 790 una hora después, más de tres veces el número de núcleos.
 
-Como el usuario no puede reservar un nodo completo, la contención no puede eliminarse y se controla de tres formas. La primera es registrar \texttt{/proc/loadavg} al inicio de cada trabajo en \texttt{entorno.txt}, para que la carga quede asociada a cada medición. La segunda es el monitor de \texttt{nvidia-smi} descrito, que permite detectar intervalos de baja utilización atribuibles a la CPU. La tercera es ejecutar repeticiones suficientes para estimar la varianza y detectar ejecuciones contaminadas, en lugar de confiar en una medición única.
+Como el usuario no puede reservar un nodo completo, la contención no puede eliminarse y se controla de tres formas. La primera es registrar \texttt{/proc/loadavg} al inicio y al final de cada trabajo, para que la carga quede asociada a cada medición. La segunda es el monitor de \texttt{nvidia-smi} descrito, que permite detectar intervalos de baja utilización atribuibles a la CPU. La tercera es ejecutar repeticiones suficientes para estimar la varianza y detectar ejecuciones contaminadas, en lugar de confiar en una medición única.
 
-La diferencia de driver entre nodos de la Tabla~\ref{tab:cap2:driver} se controla con el mismo principio de registro. Cada ejecución guarda en \texttt{entorno.txt} el nodo y la versión del driver vigente en el momento de medir. La campaña definitiva deberá ejecutarse en un mismo nodo o, si el planificador no lo permite, reportar el driver como covariable en el análisis. Definidos los instrumentos y sus controles, la Sección~\ref{sec:cap2:requerimientos} fija los requerimientos que debe cumplir el banco de pruebas que los integra.
+La diferencia de driver entre nodos de la Tabla~\ref{tab:cap2:driver} se controla con el mismo principio de registro. Cada ejecución guarda el nodo y la versión del driver vigente en el momento de medir. La campaña definitiva deberá ejecutarse en un mismo nodo o, si el planificador no lo permite, reportar el driver como covariable en el análisis. Definidos los instrumentos y sus controles, la Sección~\ref{sec:cap2:requerimientos} fija los requerimientos que debe cumplir el banco de pruebas que los integra.
 
 \section{Requerimientos del Proyecto}
 \label{sec:cap2:requerimientos}
 
-Los requerimientos del banco de pruebas se derivan de los objetivos específicos y de las condiciones identificadas en el diagnóstico. Se formularon como requerimientos verificables porque el banco es un instrumento de medición, y un instrumento sin especificación no puede validarse. Las Tablas~\ref{tab:cap2:rf} y~\ref{tab:cap2:rnf} los recogen junto con la razón de cada uno.
+Los requerimientos del banco de pruebas se derivan de los objetivos específicos y de las condiciones identificadas en el diagnóstico. Se formularon como requerimientos verificables porque el banco es un instrumento de medición, y un instrumento sin especificación no puede validarse. Varios de ellos no figuraban en la especificación inicial: surgieron de las iteraciones de la Tabla~\ref{tab:cap2:iteraciones}, y la columna de origen lo indica. Las Tablas~\ref{tab:cap2:rf} y~\ref{tab:cap2:rnf} los recogen junto con la razón de cada uno.
 
 \subsection{Requerimientos Funcionales}
 \label{sec:cap2:rf}
@@ -273,29 +316,35 @@ Los requerimientos del banco de pruebas se derivan de los objetivos específicos
   \centering
   \caption{Requerimientos funcionales del banco de pruebas.}
   \label{tab:cap2:rf}
-  \small
-  \begin{tabular}{|p{0.07\textwidth}|p{0.43\textwidth}|p{0.40\textwidth}|}
+  \footnotesize
+  \begin{tabular}{|p{0.06\textwidth}|p{0.36\textwidth}|p{0.34\textwidth}|p{0.12\textwidth}|}
     \hline
-    \textbf{ID} & \textbf{Requerimiento} & \textbf{Razón} \\
+    \textbf{ID} & \textbf{Requerimiento} & \textbf{Razón} & \textbf{Origen} \\
     \hline
-    RF1 & Desplegar vLLM con una configuración parametrizada en YAML y verificar su salud mediante \texttt{/health} & Evita medir contra un servidor que aún no está listo \\
+    RF1 & Levantar el servidor de inferencia dentro del trabajo de Slurm con una configuración versionada y no enviar carga hasta que responda su comprobación de salud (\texttt{/health} en vLLM, \texttt{/api/version} en Ollama) & Evita medir contra un servidor que aún no está listo & SPEC; it.~6 \\
     \hline
-    RF2 & Generar prompts sintéticos de longitud exacta en tokens con el tokenizador de Qwen3 & La longitud de entrada es una variable experimental y debe controlarse en tokens, no en caracteres \\
+    RF2 & Cronometrar el arranque del servidor y registrar cuánto tarda cada parte & Con Qwen3-14B el arranque puede consumir la mayor parte del trabajo & It.~4 y 6 \\
     \hline
-    RF3 & Ejecutar la carga en modo sin servidor (lote fijo) y en modo en línea (llegadas Poisson, cliente asíncrono con streaming) & Sostiene los métodos 1 y 2 de la triangulación \\
+    RF3 & Controlar la longitud de entrada y registrar la longitud real en tokens que cuenta el servidor & La longitud de entrada es una variable experimental y debe conocerse en tokens, no en caracteres & SPEC; it.~8 \\
     \hline
-    RF4 & Registrar los tiempos por petición y por token con marcas de tiempo de alta resolución en el cliente & Permite calcular TTFT, TPOT e ITL desde la perspectiva del usuario \\
+    RF4 & Enviar las solicitudes en streaming y registrar marcas de tiempo de alta resolución por fragmento en el cliente & Permite calcular TTFT, TPOT e ITL desde la perspectiva del usuario & SPEC \\
     \hline
-    RF5 & Muestrear en paralelo la telemetría de la GPU y las métricas Prometheus de vLLM & Sostiene el método 3, la estimación de energía y el control de la contención \\
+    RF5 & Recoger las métricas internas del servidor: \texttt{/metrics} en vLLM y los campos de duración en Ollama & Sostienen el tercer método de la triangulación & SPEC; it.~8 \\
     \hline
-    RF6 & Persistir cada corrida con sus metadatos: versiones, hardware, configuración, semilla y marca de tiempo & Hace comparables mediciones separadas por días o por cambios de driver \\
+    RF6 & Muestrear en paralelo la telemetría de la GPU y registrar el load average del nodo & Sostiene la estimación de energía y el control de la contención & SPEC \\
     \hline
-    RF7 & Ajustar los modelos y generar automáticamente las tablas y figuras para LaTeX & Elimina la transcripción manual de resultados a la memoria \\
+    RF7 & Añadir un prefijo único a cada solicitud & Impide que el servidor reutilice el KV cache de la solicitud anterior y acorte artificialmente el prefill & It.~8 \\
+    \hline
+    RF8 & Reiniciar el servidor al cambiar de modelo y verificar que el modelo cabe completo en la GPU & Un servidor con memoria libre desactualizada puede repartir el modelo entre GPU y CPU & It.~8 \\
+    \hline
+    RF9 & Persistir cada corrida en JSON con sus metadatos: nodo, trabajo, versiones, modelo, parámetros, semilla y marca de tiempo, guardando tras cada solicitud & Hace comparables mediciones separadas por días y conserva los datos si el trabajo se interrumpe & SPEC; it.~2 \\
+    \hline
+    RF10 & Agregar los resultados y generar automáticamente las tablas para la memoria & Elimina la transcripción manual de resultados & SPEC \\
     \hline
   \end{tabular}
 \end{table}
 \elaboradopor{José Andrés Ureta Granda}
-\fuente{Especificación del proyecto (\texttt{SPEC.md}, §11.1)}
+\fuente{Especificación del proyecto (\texttt{SPEC.md}, §11.1) e iteraciones de la Tabla~\ref{tab:cap2:iteraciones}}
 
 \subsection{Requerimientos No Funcionales}
 \label{sec:cap2:rnf}
@@ -304,38 +353,97 @@ Los requerimientos del banco de pruebas se derivan de los objetivos específicos
   \centering
   \caption{Requerimientos no funcionales del banco de pruebas.}
   \label{tab:cap2:rnf}
-  \small
-  \begin{tabular}{|p{0.20\textwidth}|p{0.38\textwidth}|p{0.32\textwidth}|}
+  \footnotesize
+  \begin{tabular}{|p{0.18\textwidth}|p{0.36\textwidth}|p{0.36\textwidth}|}
     \hline
     \textbf{ID} & \textbf{Requerimiento} & \textbf{Razón} \\
     \hline
-    RNF1 Reproducibilidad & Versiones fijadas, semillas fijas, contenedor o lockfile y scripts idempotentes & El primer objetivo específico exige un entorno reproducible \\
+    RNF1 Reproducibilidad & Versiones y revisiones del modelo fijadas, semillas fijas, dependencias congeladas y scripts idempotentes & El primer objetivo específico exige un entorno reproducible \\
     \hline
-    RNF2 Aislamiento & GPU dedicada sin otros procesos durante las mediciones, verificada con \texttt{nvidia-smi} & Otro proceso en la GPU contaminaría latencia y energía; la contención de CPU, que no puede aislarse, se controla según la Sección~\ref{sec:cap2:control} \\
+    RNF2 Aislamiento de la GPU & GPU completa y dedicada, sin otros procesos durante la medición, verificada con \texttt{nvidia-smi} & Otro proceso en la GPU contaminaría latencia y energía \\
     \hline
-    RNF3 Precisión de medición & Reloj monotónico (\texttt{time.perf\_counter\_ns}), warm-up descartado y repeticiones suficientes & Un reloj ajustable o una primera ejecución en frío sesgarían el TTFT \\
+    RNF3 Contención registrada & La carga de CPU del nodo, que no puede aislarse, se registra como covariable en cada corrida & Con load averages de hasta 790 no es realista exigir un nodo sin carga (Sección~\ref{sec:cap2:control}) \\
     \hline
-    RNF4 Trazabilidad & Cada figura o tabla de la memoria referencia el identificador de la corrida de origen & Permite auditar cualquier cifra hasta su dato crudo \\
+    RNF4 Precisión de medición & Reloj monotónico (\texttt{time.perf\_counter}), calentamiento descartado y repeticiones suficientes & Un reloj ajustable o una primera ejecución en frío sesgarían el TTFT \\
     \hline
-    RNF5 Costo & La campaña completa cabe en el presupuesto de horas de GPU & Con un único trabajo simultáneo, el tiempo de GPU es el recurso escaso \\
+    RNF5 Trazabilidad & Cada tabla o figura de la memoria referencia el identificador de la corrida y del trabajo de origen & Permite auditar cualquier cifra hasta su dato crudo \\
+    \hline
+    RNF6 Costo acotado & Cada fase tiene un tiempo máximo y la campaña cabe en el presupuesto de horas de GPU & Con un único trabajo simultáneo, el tiempo de GPU es el recurso escaso; las iteraciones 2, 4 y 6 lo agotaron sin medir \\
+    \hline
+    RNF7 Portabilidad del cliente & El cliente depende solo de la biblioteca estándar de Python & Puede ejecutarse en el nodo sin instalar nada, incluso cuando el entorno de vLLM no está disponible \\
     \hline
   \end{tabular}
 \end{table}
 \elaboradopor{José Andrés Ureta Granda}
-\fuente{Especificación del proyecto (\texttt{SPEC.md}, §11.2)}
+\fuente{Especificación del proyecto (\texttt{SPEC.md}, §11.2) e iteraciones de la Tabla~\ref{tab:cap2:iteraciones}}
 
-El requerimiento RNF1 es el que más condiciona el diseño, porque obliga a congelar un entorno que el clúster no ofrece listo para usar. La Sección~\ref{sec:cap2:diseno} describe cómo se construyó ese entorno.
+El requerimiento RNF1 es el que más condiciona el diseño, porque obliga a congelar un entorno que el clúster no ofrece listo para usar, y el RF1 obliga a definir cómo se comunican el cliente y el servidor. La Sección~\ref{sec:cap2:diseno} describe ambas cosas.
 
 \section{Diseño de la Solución}
 \label{sec:diseno_solucion}
 \label{sec:cap2:diseno}
 
-El diseño de la solución comprende dos elementos: el entorno de software congelado sobre el que se ejecutan todas las mediciones y el parche que hace posible ese entorno en los nodos del clúster. Ambos responden al requerimiento RNF1, porque una medición solo es reproducible si lo es el entorno que la produce.
+El diseño de la solución comprende tres elementos: la conexión entre el cliente de medición y el servidor de inferencia, el entorno de software congelado sobre el que se ejecutan todas las mediciones y el parche que hace posible ese entorno en los nodos del clúster.
+
+\subsection{Conexión con el servidor de inferencia}
+\label{sec:cap2:conexion}
+
+Los modelos no se ejecutan como una biblioteca dentro del programa de medición, sino detrás de un servidor de inferencia al que el cliente se conecta por HTTP. Se eligió esa arquitectura porque es la forma en que los modelos se sirven en producción, de modo que las latencias medidas incluyen los mismos componentes que percibiría un usuario real: la recepción de la solicitud, la planificación, el prefill, el decode y el envío de cada token.
+
+La Figura~\ref{fig:cap2:conexion} muestra la disposición. El investigador accede por SSH al nodo de acceso del clúster y envía el trabajo a Slurm. Dentro del trabajo, en el mismo nodo de GPU, se ejecutan dos procesos: el servidor, que carga el modelo en la A100 y escucha únicamente en la interfaz local \texttt{127.0.0.1}, y el cliente, que le envía las solicitudes. Al compartir nodo, la red no interviene en la medición: en la iteración 8, el tiempo atribuible al transporte y al cliente fue de alrededor de 1~ms. Escuchar solo en la interfaz local evita, además, exponer el servidor a otros usuarios del clúster.
+
+\begin{figure}[htbp]
+  \centering
+  \small
+  \setlength{\fboxsep}{6pt}
+  \fbox{\begin{minipage}{0.92\textwidth}
+    \centering
+    \textbf{Equipo del investigador} $\xrightarrow{\text{SSH}}$ \textbf{Nodo de acceso} $\xrightarrow{\texttt{sbatch}}$ \textbf{Nodo GPU} (\texttt{compute-0-1} o \texttt{compute-0-2})\\[6pt]
+    \fbox{\begin{minipage}{0.86\textwidth}
+      \centering
+      Trabajo de Slurm\\[4pt]
+      \fbox{\begin{minipage}{0.36\textwidth}\centering Cliente de medición\\ \texttt{tfgbench} / \texttt{medir\_ollama.py}\end{minipage}}
+      $\;\overset{\text{HTTP, streaming}}{\longleftrightarrow}\;$
+      \fbox{\begin{minipage}{0.36\textwidth}\centering Servidor de inferencia\\ \texttt{vllm serve} :8000\\ \texttt{ollama serve} :11434\end{minipage}}\\[4pt]
+      \hfill Interfaz local \texttt{127.0.0.1} \hfill A100-SXM4-40GB \hfill\null
+    \end{minipage}}
+  \end{minipage}}
+  \caption{Conexión entre el cliente de medición y el servidor de inferencia.}
+  \label{fig:cap2:conexion}
+\end{figure}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Elaboración propia}
+
+La Tabla~\ref{tab:cap2:api} resume los puntos de acceso que usa el cliente con cada servidor. vLLM expone una API compatible con la de OpenAI, de modo que la solicitud de generación es un \texttt{POST} a \texttt{/v1/completions} con el modelo, el prompt, el número máximo de tokens y la opción de streaming. Ollama expone su API nativa en \texttt{/api/generate}; con ella se usa el modo \texttt{raw}, que envía el prompt sin aplicar la plantilla de conversación del modelo, para que el número de tokens de entrada dependa solo del texto enviado.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Puntos de acceso de los servidores de inferencia utilizados por el cliente.}
+  \label{tab:cap2:api}
+  \footnotesize
+  \begin{tabular}{|p{0.22\textwidth}|p{0.34\textwidth}|p{0.34\textwidth}|}
+    \hline
+    \textbf{Función} & \textbf{vLLM 0.20.0 (puerto 8000)} & \textbf{Ollama 0.24.0 (puerto 11434)} \\
+    \hline
+    Comprobar que está listo & \texttt{GET /health} (código 200) & \texttt{GET /api/version} \\
+    \hline
+    Identificar el modelo & \texttt{GET /v1/models} & \texttt{POST /api/show} \\
+    \hline
+    Generar en streaming & \texttt{POST /v1/completions} con \texttt{stream: true} & \texttt{POST /api/generate} con \texttt{stream: true} y \texttt{raw: true} \\
+    \hline
+    Métricas del servidor & \texttt{GET /metrics} (formato Prometheus) & Campos \texttt{prompt\_eval\_*}, \texttt{eval\_*} y \texttt{load\_duration} de la última respuesta \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Scripts \texttt{fase2\_arranque.sh} y \texttt{medir\_ollama.py}; documentación de vLLM y Ollama}
+
+El protocolo de una solicitud es el mismo con ambos servidores. El cliente fija la temperatura en 0 y la semilla en 0 para que la generación sea determinista, y fija el número de tokens de salida. Toma el instante inicial con un reloj monotónico, envía la solicitud y lee la respuesta fragmento a fragmento: el primer fragmento con texto marca el TTFT, y la separación entre fragmentos sucesivos da el ITL. Al terminar, el cliente guarda tanto sus propias marcas como las métricas que reporta el servidor, de modo que cada solicitud aporta datos a los métodos 2 y 3 de la triangulación. Antes de medir, el cliente envía una solicitud mínima que obliga a cargar el modelo y cuya duración se registra aparte como tiempo de carga, para que ese costo no contamine la primera medición.
 
 \subsection{Entorno de software congelado}
 \label{sec:cap2:entorno}
 
-La Tabla~\ref{tab:cap2:entorno} recoge los componentes del entorno y sus versiones exactas. Se congelaron la revisión del modelo y el commit de la rueda de vLLM, y no solo sus números de versión, porque un mismo número de versión puede corresponder a binarios o pesos distintos. Las dependencias completas quedan en el archivo \texttt{req-congelado.txt}, que acompaña al repositorio. El entorno se construyó como un entorno Python versionado, una de las tres vías de reconstrucción que admite la ficha junto con Docker y Apptainer.
+La Tabla~\ref{tab:cap2:entorno} recoge los componentes del entorno y sus versiones exactas. Se congelaron las revisiones de los modelos y el commit de la rueda de vLLM, y no solo sus números de versión, porque un mismo número de versión puede corresponder a binarios o pesos distintos. Las dependencias completas quedan en el archivo \texttt{req-congelado.txt}, que acompaña al repositorio. El entorno se construyó como un entorno Python versionado, una de las tres vías de reconstrucción que admite la ficha junto con Docker y Apptainer.
 
 \begin{table}[htbp]
   \centering
@@ -358,9 +466,13 @@ La Tabla~\ref{tab:cap2:entorno} recoge los componentes del entorno y sus version
     \hline
     Backend de atención & FlashAttention 2 \\
     \hline
-    Modelo & \texttt{Qwen/Qwen3-8B}, revisión \texttt{b968826d9c\allowbreak 46dd6066d1\allowbreak 09eabc6255\allowbreak 188de91218} \\
+    Modelo principal & \texttt{Qwen/Qwen3-14B}, revisión \texttt{40c069824f\allowbreak 4251a91eef\allowbreak af281ebe4c\allowbreak 544efd3e18} \\
     \hline
-    Caché de modelos & \texttt{HF\_HOME=\textasciitilde/tfg-jose-ureta/hf-cache} \\
+    Modelo piloto & \texttt{Qwen/Qwen3-8B}, revisión \texttt{b968826d9c\allowbreak 46dd6066d1\allowbreak 09eabc6255\allowbreak 188de91218} \\
+    \hline
+    Caché de modelos & \texttt{HF\_HOME=\textasciitilde/tfg-jose-ureta/hf-cache}, en modo sin conexión (\texttt{HF\_HUB\_OFFLINE=1}) \\
+    \hline
+    Servidor de contraste & Ollama 0.24.0 con la capa de compatibilidad CUDA 12.8 \\
     \hline
     Dependencias completas & \texttt{req-congelado.txt} \\
     \hline
@@ -369,12 +481,12 @@ La Tabla~\ref{tab:cap2:entorno} recoge los componentes del entorno y sus version
 \elaboradopor{José Andrés Ureta Granda}
 \fuente{Entorno instalado en el clúster HPC CEDIA}
 
-La razón de cada versión, en particular la de vLLM 0.20.0 y la del backend FlashAttention 2, se expone en la Sección~\ref{sec:cap2:justificacion}. Antes es necesario resolver un problema que impedía cargar esa versión de vLLM en los nodos.
+La caché de modelos se usa en modo sin conexión para que ningún trabajo descargue pesos durante la medición: la revisión que se ejecuta es siempre la que quedó registrada en la tabla. La razón de cada versión, en particular la de vLLM 0.20.0 y la del backend FlashAttention 2, se expone en la Sección~\ref{sec:cap2:justificacion}. Antes es necesario resolver un problema que impedía cargar esa versión de vLLM en los nodos.
 
 \subsection{Parche de compatibilidad glibc}
 \label{sec:cap2:parche}
 
-La rueda \texttt{vllm-0.20.0+cu129} se distribuye con la etiqueta \texttt{manylinux\_2\_31}, que declara compatibilidad con glibc 2.31 o superior~\cite{smith2019pep600}. Sin embargo, dos de sus extensiones nativas, \texttt{\_C.abi3.so} y \texttt{\_moe\_C.abi3.so}, enlazan cuatro símbolos con la versión \texttt{GLIBC\_2.34}: \texttt{dlopen}, \texttt{dlclose}, \texttt{dlsym} y \texttt{pthread\_once}. En los nodos, con glibc 2.31, el resultado es un \texttt{ImportError} al cargar vLLM. La etiqueta de la rueda es, por tanto, incorrecta.
+La rueda \texttt{vllm-0.20.0+cu129} se distribuye con la etiqueta \texttt{manylinux\_2\_31}, que declara compatibilidad con glibc 2.31 o superior~\cite{smith2019pep600}. Sin embargo, dos de sus extensiones nativas, \texttt{\_C.abi3.so} y \texttt{\_moe\_C.abi3.so}, enlazan cuatro símbolos con la versión \texttt{GLIBC\_2.34}: \texttt{dlopen}, \texttt{dlclose}, \texttt{dlsym} y \texttt{pthread\_once}. En los nodos, con glibc 2.31, el resultado es un \texttt{ImportError} al cargar vLLM. La etiqueta de la rueda es, por tanto, incorrecta. Este fue el primer fallo de la Tabla~\ref{tab:cap2:iteraciones}.
 
 El diagnóstico consistió en inspeccionar con \texttt{objdump -T} todas las bibliotecas compartidas del entorno virtual. Solo cuatro declaran dependencias de glibc 2.32 o superior, y la Tabla~\ref{tab:cap2:bibliotecas} indica cuáles se cargan efectivamente en el clúster. Las dos que no se cargan quedan fuera del problema: una implementa FlashAttention 3, que solo existe para Hopper, y la otra está compilada para Python 3.12. El parche debe actuar, en consecuencia, solo sobre las dos extensiones del núcleo de vLLM.
 
@@ -404,29 +516,29 @@ Los cuatro símbolos no corresponden a funcionalidad ausente en glibc 2.31. En g
 La incompatibilidad es, por tanto, un artefacto de haber compilado la rueda en un sistema más moderno, y basta con indicar al cargador dinámico dónde encontrar los símbolos.
 
 La solución se implementó en el script \texttt{parche\_glibc.sh}, que aplica tres operaciones. Primero, elimina la versión de los cuatro símbolos con \texttt{patchelf -{}-clear-symbol-version} y añade \texttt{libdl.so.2} y \texttt{libpthread.so.0} como dependencias explícitas con \texttt{-{}-add-needed}.\footnote{patchelf, utilidad para modificar ejecutables y bibliotecas ELF; ambas opciones se describen en su documentación y su código fuente, disponibles en \url{https://github.com/NixOS/patchelf}. Consultado el 24 de octubre de 2026.}
-Segundo, marca como \texttt{VER\_FLG\_WEAK} la entrada \texttt{GLIBC\_2.34} de la sección \texttt{.gnu.\allowbreak version\_r} mediante \texttt{parche\_\allowbreak glibc\_\allowbreak weak.py}, porque el paso anterior no basta: el cargador sigue rechazando la biblioteca mientras esa entrada exista sin la bandera. Tercero, verifica que \texttt{import vllm.\_C} e \texttt{import vllm.\_moe\_C} funcionen.
+Segundo, marca como \texttt{VER\_FLG\_WEAK} la entrada \texttt{GLIBC\_2.34} de la sección \texttt{.gnu.\allowbreak version\_r} mediante \texttt{parche\_\allowbreak glibc\_\allowbreak weak.py}, porque el paso anterior no basta: el cargador sigue rechazando la biblioteca mientras esa entrada exista sin la bandera. Tercero, verifica que \texttt{import vllm.\_C} e \texttt{import vllm.\_moe\_C} funcionen. Que hicieran falta dos pasos, y no uno, es otro ejemplo del método: el primer intento con \texttt{patchelf} no bastó, y fue el mensaje del cargador el que indicó el segundo ajuste.
 
-El script es idempotente y conserva los binarios originales como \texttt{*.so.orig}, de modo que aplicarlo varias veces no altera el resultado y el cambio es reversible. Debe reaplicarse tras cada reinstalación del entorno virtual, y por eso \texttt{bench\_pd.sh} lo invoca automáticamente si detecta que vLLM no se importa. Así, ningún trabajo de medición depende de que el parche se haya aplicado a mano.
+El script es idempotente y conserva los binarios originales como \texttt{*.so.orig}, de modo que aplicarlo varias veces no altera el resultado y el cambio es reversible. Debe reaplicarse tras cada reinstalación del entorno virtual, y por eso los scripts de medición lo invocan automáticamente si detectan que vLLM no se importa. Así, ningún trabajo de medición depende de que el parche se haya aplicado a mano.
 
 El parche no altera el comportamiento numérico de vLLM. Solo reubica dónde busca el cargador dinámico cuatro símbolos de carga de bibliotecas y sincronización; no modifica kernels, precisión numérica ni planificación de solicitudes. Aun así, constituye una modificación del binario distribuido, y el entorno resultante no es bit a bit idéntico al que se obtendría con \texttt{pip install vllm==0.20.0} en un sistema con glibc 2.34 o superior. Por esa razón, los scripts del parche acompañan al repositorio, para que cualquier persona pueda reproducir exactamente el mismo entorno. Las alternativas que se evaluaron antes de optar por el parche se discuten en la Sección~\ref{sec:cap2:justificacion}.
 
 \section{Justificación Técnica}
 \label{sec:cap2:justificacion}
 
-La justificación técnica parte de las tecnologías que fija el caso de estudio: el motor de inferencia vLLM, que gestiona el KV cache mediante PagedAttention y planifica la ejecución a nivel de iteración~\cite{kwon2023pagedattention}; el modelo Qwen3-8B~\cite{qwen2025qwen3}; y la GPU NVIDIA A100~\cite{nvidia2021a100}. Esas tecnologías vienen dadas por la ficha. Esta sección justifica, en cambio, las decisiones que el trabajo sí tomó dentro de ellas: las versiones, el backend de atención, la vía de compatibilidad y la factibilidad de la matriz en memoria.
+La justificación técnica parte de las tecnologías que fija el caso de estudio: el motor de inferencia vLLM, que gestiona el KV cache mediante PagedAttention y planifica la ejecución a nivel de iteración~\cite{kwon2023pagedattention}; la familia de modelos Qwen3~\cite{qwen2025qwen3}, en sus tamaños de 14 y 8 mil millones de parámetros; y la GPU NVIDIA A100~\cite{nvidia2021a100}. Esta sección justifica las decisiones que el trabajo tomó dentro de ellas: las versiones, el backend de atención, la vía de compatibilidad y la factibilidad de la matriz en memoria.
 
 \subsection{Versiones y backend de atención}
 \label{sec:cap2:versiones}
 
-La versión 0.20.0 de vLLM no se eligió por preferencia, sino por una restricción del entorno. Las versiones posteriores distribuyen su stack compilado contra CUDA 13, y el clúster operaba con el driver 535 en el momento de la instalación. La compatibilidad de versiones menores de CUDA permite ejecutar runtimes 12.x sobre drivers 525 o superiores, pero exige un driver 580 o superior para CUDA 13, de modo que no cruza de la versión mayor 12 a la 13.\footnote{NVIDIA, \textit{CUDA Toolkit Release Notes}, tabla de versiones mínimas del driver para la compatibilidad de versiones menores, disponible en \url{https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/}; y \textit{CUDA Compatibility}, apartado de compatibilidad hacia adelante, disponible en \url{https://docs.nvidia.com/deploy/cuda-compatibility/forward-compatibility.html}. Consultado el 24 de octubre de 2026.} La versión 0.20.0 con CUDA runtime 12.9 es, por tanto, la más reciente ejecutable con aquel driver sin recurrir a la compatibilidad hacia adelante, el mecanismo de NVIDIA que permite ejecutar CUDA 13 sobre drivers anteriores en GPU de centro de datos mediante el paquete \texttt{cuda-compat}.
-% REVISAR: justificar por qué no se usó la compatibilidad hacia adelante (cuda-compat), que NVIDIA declara compatible con la rama 535, o valorar si permite una versión más reciente de vLLM
+La versión 0.20.0 de vLLM no se eligió por preferencia, sino por una restricción del entorno. Las versiones posteriores distribuyen su stack compilado contra CUDA 13, y el clúster operaba con el driver 535 en el momento de la instalación. La compatibilidad de versiones menores de CUDA permite ejecutar runtimes 12.x sobre drivers 525 o superiores, pero exige un driver 580 o superior para CUDA 13, de modo que no cruza de la versión mayor 12 a la 13.\footnote{NVIDIA, \textit{CUDA Toolkit Release Notes}, tabla de versiones mínimas del driver para la compatibilidad de versiones menores, disponible en \url{https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/}; y \textit{CUDA Compatibility}, apartado de compatibilidad hacia adelante, disponible en \url{https://docs.nvidia.com/deploy/cuda-compatibility/forward-compatibility.html}. Consultado el 24 de octubre de 2026.} La versión 0.20.0 con CUDA runtime 12.9 es, por tanto, la más reciente ejecutable con aquel driver sin recurrir a la compatibilidad hacia adelante, el mecanismo de NVIDIA que permite ejecutar versiones de CUDA más recientes sobre drivers anteriores en GPU de centro de datos mediante el paquete \texttt{cuda-compat}. La misma restricción decidió la versión de Ollama: se usó la 0.24.0 con la capa de compatibilidad CUDA 12.8 porque las versiones a partir de la 0.30 exigen un driver 550 o superior.
+% REVISAR: justificar por qué no se usó la compatibilidad hacia adelante (cuda-compat) con CUDA 13 para vLLM, que NVIDIA declara compatible con la rama 535, o valorar si permite una versión más reciente de vLLM
 
-El driver 575.51.03 observado en \texttt{compute-0-2}, recogido en la Tabla~\ref{tab:cap2:driver}, no invalida esta decisión. Ese driver sigue por debajo de 580, de modo que la compatibilidad de versiones menores tampoco permitiría ejecutar CUDA 13 con él. Mantener la versión congelada preserva, además, la comparabilidad con las ejecuciones ya realizadas.
+El driver 575.51.03 observado en \texttt{compute-0-2}, recogido en la Tabla~\ref{tab:cap2:driver}, no invalida esta decisión. Ese driver sigue por debajo de 580, de modo que la compatibilidad de versiones menores tampoco permitiría ejecutar CUDA 13 con él. Mantener la versión congelada preserva, además, la comparabilidad entre el piloto con Qwen3-8B y la campaña con Qwen3-14B.
 
-vLLM selecciona FlashAttention-2~\cite{dao2024flashattention2} como backend de atención porque FlashAttention-3 está diseñada para explotar características de la arquitectura Hopper~\cite{shah2024flashattention3}, y la A100 pertenece a la arquitectura Ampere. FlashAttention reduce los accesos a la memoria de alto ancho de banda de la GPU durante el cálculo de la atención~\cite{dao2022flashattention}.
+vLLM selecciona FlashAttention-2~\cite{dao2024flashattention2} como backend de atención, y el registro del arranque de Qwen3-14B lo confirma, porque FlashAttention-3 está diseñada para explotar características de la arquitectura Hopper~\cite{shah2024flashattention3}, y la A100 pertenece a la arquitectura Ampere. FlashAttention reduce los accesos a la memoria de alto ancho de banda de la GPU durante el cálculo de la atención~\cite{dao2022flashattention}.
 Se trata de una limitación de la plataforma y no de una decisión del experimento. Se declara porque afecta al rendimiento absoluto de la fase de prefill, que es la más intensiva en la atención.
 
-Para resolver la incompatibilidad con glibc se evaluaron tres alternativas antes de optar por el parche, recogidas en la Tabla~\ref{tab:cap2:alternativas}. El contenedor oficial queda como plan B porque resuelve el problema sin modificar binarios, pero su tamaño lo hace costoso en el almacenamiento compartido. La compilación desde el código fuente se descartó por su costo en tiempo, y la regresión a una versión anterior, porque no resolvía el problema.
+Para resolver la incompatibilidad con glibc se evaluaron tres alternativas antes de optar por el parche, recogidas en la Tabla~\ref{tab:cap2:alternativas}. El contenedor oficial queda como plan B porque resuelve el problema sin modificar binarios, pero su tamaño lo hace costoso en el almacenamiento compartido, un costo que la iteración 6 confirmó al medir lo que tarda leer el entorno desde el NFS. La compilación desde el código fuente se descartó por su costo en tiempo, y la regresión a una versión anterior, porque no resolvía el problema.
 
 \begin{table}[htbp]
   \centering
@@ -448,26 +560,34 @@ Para resolver la incompatibilidad con glibc se evaluaron tres alternativas antes
 \elaboradopor{José Andrés Ureta Granda}
 \fuente{Elaboración propia}
 
-Fijadas las versiones, queda por justificar que la plataforma puede alojar la matriz experimental y qué rendimiento cabe esperar de ella como máximo. La Sección~\ref{sec:cap2:techos} lo establece mediante cálculos analíticos.
+Fijadas las versiones, queda por justificar que la plataforma puede alojar la matriz experimental y qué rendimiento cabe esperar de ella como máximo. La Sección~\ref{sec:cap2:techos} lo establece mediante cálculos analíticos para los dos modelos.
 
 \subsection{Techos teóricos y presupuesto de memoria}
 \label{sec:cap2:techos}
 
 Los techos teóricos sirven de referencia contra la cual se contrastarán las mediciones. Se calculan con el modelo roofline, que acota el rendimiento de un cálculo por el menor de dos límites: el cómputo máximo del procesador y el ancho de banda de la memoria~\cite{williams2009roofline}. Sin esta referencia, una cifra de throughput es un número suelto; con ella, indica qué fracción del límite físico alcanza cada fase.
 
-El punto de partida es el tamaño de los pesos. Qwen3-8B tiene aproximadamente $N = 8{,}2 \cdot 10^{9}$ parámetros~\cite{qwen2025qwen3}, y en BF16 cada parámetro ocupa 2 bytes. La Ecuación~\ref{eq:cap2:pesos} obtiene el volumen de los pesos, que equivale a 15,3~GiB.
+El punto de partida es el tamaño de los pesos. Qwen3-14B tiene aproximadamente $N = 14{,}8 \cdot 10^{9}$ parámetros y Qwen3-8B, $N = 8{,}2 \cdot 10^{9}$~\cite{qwen2025qwen3}. En BF16 cada parámetro ocupa 2 bytes, y la Ecuación~\ref{eq:cap2:pesos} obtiene el volumen de los pesos. Para Qwen3-14B el resultado, 27,6~GiB, coincide con los 27,52~GiB que el motor registró al cargar el modelo en la iteración 6; para Qwen3-8B equivale a 15,3~GiB.
 
 \begin{equation}
 \label{eq:cap2:pesos}
-M_{pesos} = N \times 2~\mathrm{B} = 8{,}2 \cdot 10^{9} \times 2~\mathrm{B} \approx 16{,}4~\mathrm{GB}
+M_{pesos} = N \times 2~\mathrm{B} \approx
+\begin{cases}
+29{,}6~\mathrm{GB} & \text{Qwen3-14B} \\
+16{,}4~\mathrm{GB} & \text{Qwen3-8B}
+\end{cases}
 \end{equation}
-\addeqtolist{Volumen de los pesos de Qwen3-8B en BF16}
+\addeqtolist{Volumen de los pesos en BF16}
 
-En el decode con lote 1, cada token generado exige leer todos los pesos desde la memoria HBM2 de la GPU, y el cómputo por byte leído es bajo. La fase queda entonces limitada por el ancho de banda de memoria, y su techo se obtiene con la Ecuación~\ref{eq:cap2:techo-decode}. El cálculo ignora la lectura del KV cache, que con lote 1 es pequeña frente a los pesos, de modo que el techo real es algo inferior.
+En el decode con lote 1, cada token generado exige leer todos los pesos desde la memoria HBM2 de la GPU, y el cómputo por byte leído es bajo. La fase queda entonces limitada por el ancho de banda de memoria, y su techo se obtiene con la Ecuación~\ref{eq:cap2:techo-decode}. El cálculo ignora la lectura del KV cache, que con lote 1 es pequeña frente a los pesos, de modo que el techo real es algo inferior. Expresado como tiempo por token, el TPOT de Qwen3-14B no puede bajar de unos 19~ms, y el de Qwen3-8B, de unos 10,5~ms.
 
 \begin{equation}
 \label{eq:cap2:techo-decode}
-X_{decode}^{max} \approx \frac{BW_{HBM}}{M_{pesos}} = \frac{1555~\mathrm{GB/s}}{16{,}4~\mathrm{GB}} \approx 95~\mathrm{tok/s}
+X_{decode}^{max} \approx \frac{BW_{HBM}}{M_{pesos}} \approx
+\begin{cases}
+\dfrac{1555~\mathrm{GB/s}}{29{,}6~\mathrm{GB}} \approx 53~\mathrm{tok/s} & \text{Qwen3-14B} \\[10pt]
+\dfrac{1555~\mathrm{GB/s}}{16{,}4~\mathrm{GB}} \approx 95~\mathrm{tok/s} & \text{Qwen3-8B}
+\end{cases}
 \end{equation}
 \addeqtolist{Techo teórico del decode con lote 1}
 
@@ -475,32 +595,75 @@ En el prefill, en cambio, todos los tokens del prompt se procesan en paralelo y 
 
 \begin{equation}
 \label{eq:cap2:techo-prefill}
-X_{prefill}^{max} \approx \frac{P_{BF16}}{2N} = \frac{312 \cdot 10^{12}~\mathrm{FLOP/s}}{2 \times 8{,}2 \cdot 10^{9}~\mathrm{FLOP/tok}} \approx 19\,000~\mathrm{tok/s}
+X_{prefill}^{max} \approx \frac{P_{BF16}}{2N} \approx
+\begin{cases}
+\dfrac{312 \cdot 10^{12}~\mathrm{FLOP/s}}{2 \times 14{,}8 \cdot 10^{9}~\mathrm{FLOP/tok}} \approx 10\,500~\mathrm{tok/s} & \text{Qwen3-14B} \\[10pt]
+\dfrac{312 \cdot 10^{12}~\mathrm{FLOP/s}}{2 \times 8{,}2 \cdot 10^{9}~\mathrm{FLOP/tok}} \approx 19\,000~\mathrm{tok/s} & \text{Qwen3-8B}
+\end{cases}
 \end{equation}
 \addeqtolist{Techo teórico del prefill}
 
-Los dos techos difieren en dos órdenes de magnitud, y esa diferencia es la expresión cuantitativa del argumento central del trabajo: prefill y decode son fases con cuellos de botella distintos. Contrastar las mediciones contra estos techos es lo que permitirá identificar el cuello de botella dominante de cada fase, como exige el cuarto objetivo específico.
+En ambos modelos los dos techos difieren en dos órdenes de magnitud, y esa diferencia es la expresión cuantitativa del argumento central del trabajo: prefill y decode son fases con cuellos de botella distintos. Contrastar las mediciones contra estos techos es lo que permitirá identificar el cuello de botella dominante de cada fase, como exige el cuarto objetivo específico. Comparar los dos modelos añade una predicción verificable: si el decode está limitado por la memoria, el TPOT debe crecer aproximadamente en la misma proporción que el volumen de los pesos, un factor cercano a 1,8.
 
-El presupuesto de memoria determina si la configuración más exigente de la matriz cabe en la GPU. Los parámetros de arquitectura se tomaron del archivo \texttt{config.json} de la revisión del modelo efectivamente descargada, y no de la documentación, porque es esa revisión la que se ejecuta. El modelo tiene 36 capas y 8 cabezas KV de dimensión 128, gracias a la atención de consultas agrupadas (GQA)~\cite{ainslie2023gqa}. La Ecuación~\ref{eq:cap2:kv-token} calcula el KV cache por token, donde el factor 2 inicial corresponde a las claves y los valores, y los 2 bytes finales, a la representación BF16.
+El presupuesto de memoria determina qué configuraciones caben en la GPU. Los parámetros de arquitectura se toman del archivo \texttt{config.json} de la revisión efectivamente descargada, porque es esa revisión la que se ejecuta. Ambos modelos usan 8 cabezas KV de dimensión 128, gracias a la atención de consultas agrupadas (GQA)~\cite{ainslie2023gqa}, y difieren en el número de capas: 40 en Qwen3-14B y 36 en Qwen3-8B~\cite{qwen2025qwen3}. La Ecuación~\ref{eq:cap2:kv-token} calcula el KV cache por token, donde el factor 2 inicial corresponde a las claves y los valores, y los 2 bytes finales, a la representación BF16.
+% REVISAR: confirmar con el config.json de la revisión 40c06982 de Qwen3-14B las 40 capas y las 8 cabezas KV.
 
 \begin{equation}
 \label{eq:cap2:kv-token}
-m_{KV} = 2 \times n_{capas} \times n_{KV} \times d_{h} \times b = 2 \times 36 \times 8 \times 128 \times 2~\mathrm{B} = 147\,456~\mathrm{B} = 144{,}0~\mathrm{KiB}
+m_{KV} = 2\, n_{capas}\, n_{KV}\, d_{h}\, b =
+\begin{cases}
+2 \times 40 \times 8 \times 128 \times 2~\mathrm{B} = 160{,}0~\mathrm{KiB} & \text{Qwen3-14B} \\
+2 \times 36 \times 8 \times 128 \times 2~\mathrm{B} = 144{,}0~\mathrm{KiB} & \text{Qwen3-8B}
+\end{cases}
 \end{equation}
-\addeqtolist{KV cache por token de Qwen3-8B}
+\addeqtolist{KV cache por token}
 
-La configuración más exigente de la ficha combina 8192 tokens con 16 secuencias concurrentes. La Ecuación~\ref{eq:cap2:kv-total} multiplica el KV cache por token por ese volumen, y la Ecuación~\ref{eq:cap2:mem-total} le suma los pesos. El total, 33,3~GiB, queda dentro de los aproximadamente 36~GiB utilizables de la A100 de 40~GB, pero con un margen estrecho.
+La diferencia decisiva no está en el KV cache por token, que solo crece un 11~\%, sino en el espacio que queda para él. Para el piloto con Qwen3-8B, la configuración más exigente de la ficha combina 8192 tokens con 16 secuencias concurrentes. Las Ecuaciones~\ref{eq:cap2:kv-total} y~\ref{eq:cap2:mem-total} calculan su KV cache y le suman los pesos: el total, 33,3~GiB, queda dentro de los aproximadamente 36~GiB que vLLM puede usar con \texttt{-{}-gpu-memory-utilization 0.90}, aunque con un margen estrecho.
 
 \begin{equation}
 \label{eq:cap2:kv-total}
 M_{KV} = 8192 \times 16 \times 147\,456~\mathrm{B} \approx 18{,}0~\mathrm{GiB}
 \end{equation}
-\addeqtolist{KV cache de la configuración más exigente}
+\addeqtolist{KV cache de la configuración más exigente con Qwen3-8B}
 
 \begin{equation}
 \label{eq:cap2:mem-total}
 M_{total} = M_{pesos} + M_{KV} \approx 15{,}3~\mathrm{GiB} + 18{,}0~\mathrm{GiB} = 33{,}3~\mathrm{GiB}
 \end{equation}
-\addeqtolist{Presupuesto de memoria de la configuración más exigente}
+\addeqtolist{Presupuesto de memoria de la configuración más exigente con Qwen3-8B}
 
-El cálculo indica que la matriz de la ficha es factible en principio, pero no lo garantiza: el margen restante debe alojar también las activaciones y los grafos CUDA. Por esa razón, el escenario de 8192 tokens con concurrencia 16 en BF16 se identificó en la Sección~\ref{sec:cap2:metodologia} como el hueco prioritario del piloto. Con el método, los instrumentos, el entorno y las cotas analíticas establecidos, el Capítulo~\ref{chap:implementacion} describe la implementación del banco de pruebas y la ejecución de la campaña.
+Ese presupuesto omitía los grafos CUDA, que en el piloto ocuparon 2,44~GiB, según muestra la Sección~\ref{sec:cap3:memoria}, y con ellos la configuración ya no cabía. Con Qwen3-14B el margen es mucho menor. La Ecuación~\ref{eq:cap2:kv-libre} resta de los 36~GiB los pesos medidos y, suponiendo que los grafos CUDA ocupen lo mismo que en el piloto, obtiene el espacio que queda para el KV cache y su equivalente en tokens.
+
+\begin{equation}
+\label{eq:cap2:kv-libre}
+M_{KV}^{disp} \approx 36~\mathrm{GiB} - 27{,}5~\mathrm{GiB} - 2{,}4~\mathrm{GiB} \approx 6{,}1~\mathrm{GiB} \;\Rightarrow\; \frac{6{,}1~\mathrm{GiB}}{160~\mathrm{KiB}} \approx 40\,000~\mathrm{tokens}
+\end{equation}
+\addeqtolist{Espacio disponible para el KV cache con Qwen3-14B}
+
+La Tabla~\ref{tab:cap2:factibilidad} aplica el cálculo a las configuraciones de la ficha y a las de los experimentos E1 y E2. La columna intermedia muestra la cota sin descontar los grafos CUDA, unos 8,5~GiB, para indicar qué configuraciones dependen de ese descuento.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Factibilidad en memoria de las configuraciones con Qwen3-14B.}
+  \label{tab:cap2:factibilidad}
+  \small
+  \begin{tabular}{|p{0.28\textwidth}|p{0.13\textwidth}|p{0.11\textwidth}|p{0.16\textwidth}|p{0.16\textwidth}|}
+    \hline
+    \textbf{Configuración} & \textbf{Tokens en caché} & \textbf{KV cache} & \textbf{¿Cabe en 8,5~GiB?} & \textbf{¿Cabe en 6,1~GiB?} \\
+    \hline
+    E1: 7680 + 128 tokens, concurrencia 1 & 7\,808 & 1,2~GiB & Sí & Sí \\
+    \hline
+    E2: 1280 tokens, concurrencia 16 & 20\,480 & 3,1~GiB & Sí & Sí \\
+    \hline
+    E2: 1280 tokens, concurrencia 32 & 40\,960 & 6,3~GiB & Sí & No, por poco \\
+    \hline
+    E2: 1280 tokens, concurrencia 64 & 81\,920 & 12,5~GiB & No & No \\
+    \hline
+    Ficha: 8192 tokens, concurrencia 16 & 131\,072 & 20,0~GiB & No & No \\
+    \hline
+  \end{tabular}
+\end{table}
+\elaboradopor{José Andrés Ureta Granda}
+\fuente{Elaboración propia a partir de las Ecuaciones~\ref{eq:cap2:kv-token} y~\ref{eq:cap2:kv-libre}}
+
+El cálculo indica que, con Qwen3-14B, la A100 de 40~GB admite unas cinco secuencias concurrentes de 8192 tokens, frente a las 16 de la ficha, de modo que la matriz no es ejecutable tal como está y debe ajustarse, que es lo que prevé el riesgo R6. Los puntos de E2 que no caben no se eliminan: en ellos vLLM deberá dejar solicitudes en espera o expulsarlas de la caché y recomputarlas, y medir ese comportamiento es en sí un resultado sobre el límite de la plataforma. La cifra de 40\,000 tokens es una estimación; el valor real lo reporta vLLM al arrancar, y su registro es una de las mediciones pendientes de la fase 2. Con el método, los instrumentos, el entorno y las cotas analíticas establecidos, el Capítulo~\ref{chap:implementacion} describe la implementación del banco de pruebas y la ejecución de las iteraciones.
