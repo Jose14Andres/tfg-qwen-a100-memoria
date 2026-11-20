@@ -117,7 +117,7 @@ Estos resultados se relacionan con las restricciones de la Sección~\ref{sec:cap
 Las únicas métricas de inferencia obtenidas con vLLM proceden de dos mediciones con modelos distintos del objetivo: un piloto con Qwen3-0.6B en una instancia MIG de 5~GB y un barrido sin servidor con Qwen3-8B en la A100 completa. Ambas validan el instrumento de medida y el procedimiento, no el comportamiento de Qwen3-14B.
 
 \subsection{Piloto con Qwen3-0.6B en MIG}
-\label{sec:cap3:memoria}
+\label{sec:cap3:piloto}
 
 El piloto se ejecutó con \texttt{tfgbench} contra \texttt{vllm serve}, con 8 solicitudes por punto, 128 tokens de salida y la generación forzada hasta esa longitud. La Figura~\ref{fig:cap3:piloto} resume sus métricas para prompts de 128 y 1024 tokens y concurrencias de 1 y 4 solicitudes.
 
