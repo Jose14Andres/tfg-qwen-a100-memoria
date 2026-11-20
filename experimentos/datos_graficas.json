@@ -1,0 +1,671 @@
+{
+  "descripcion": "Valores exactos dibujados en cada figura. 'derivado' = calculado a partir de medidas, no medido directamente.",
+  "generado": "2026-11-20T15:24:48",
+  "figuras": {
+    "F01_ollama_desglose_ttft": {
+      "titulo": "Ollama: composición del TTFT",
+      "fuente": [
+        "ollama/resultados/*/datos.json"
+      ],
+      "nota": "Medianas de 5 solicitudes por punto, 128 tokens de salida, A100 40 GB. 'resto' = TTFT − prefill − load_duration (derivado).",
+      "datos": {
+        "qwen3-coder:30b": [
+          {
+            "prompt_tokens": 195,
+            "ttft_cliente_ms_mediana": 1757.9784989356995,
+            "prefill_ms_mediana": 100.132205,
+            "load_duration_ms_mediana": 1655.3083689999999,
+            "resto_ms": 2.537924935699607
+          },
+          {
+            "prompt_tokens": 717,
+            "ttft_cliente_ms_mediana": 1607.9591438174248,
+            "prefill_ms_mediana": 270.17515199999997,
+            "load_duration_ms_mediana": 1333.8162499999999,
+            "resto_ms": 3.967741817424951
+          },
+          {
+            "prompt_tokens": 2800,
+            "ttft_cliente_ms_mediana": 2824.043847620487,
+            "prefill_ms_mediana": 917.983468,
+            "load_duration_ms_mediana": 1896.618913,
+            "resto_ms": 9.441466620487176
+          }
+        ],
+        "nemotron-3-nano:30b": [
+          {
+            "prompt_tokens": 170,
+            "ttft_cliente_ms_mediana": 983.1299334764481,
+            "prefill_ms_mediana": 112.31216500000001,
+            "load_duration_ms_mediana": 867.65981,
+            "resto_ms": 3.1579584764480586
+          },
+          {
+            "prompt_tokens": 615,
+            "ttft_cliente_ms_mediana": 1599.1002768278122,
+            "prefill_ms_mediana": 278.93989899999997,
+            "load_duration_ms_mediana": 1314.9511650000002,
+            "resto_ms": 5.209212827812053
+          },
+          {
+            "prompt_tokens": 2390,
+            "ttft_cliente_ms_mediana": 2554.106503725052,
+            "prefill_ms_mediana": 794.7500600000001,
+            "load_duration_ms_mediana": 1752.572285,
+            "resto_ms": 6.784158725051839
+          }
+        ]
+      }
+    },
+    "F02_ollama_prefill_toks": {
+      "titulo": "Ollama: prefill tok/s vs prompt",
+      "fuente": [
+        "ollama/resultados/*/datos.json"
+      ],
+      "nota": "Línea = mediana de 5 solicitudes; banda = mínimo–máximo. Valor reportado por Ollama (prompt_eval_duration).",
+      "datos": {
+        "qwen3-coder:30b": [
+          {
+            "prompt_tokens": 195,
+            "prefill_tok_s_mediana": 1947.425406241678,
+            "min": 1636.0208774050438,
+            "max": 1960.987984362901
+          },
+          {
+            "prompt_tokens": 717,
+            "prefill_tok_s_mediana": 2653.6831290938712,
+            "min": 2649.3931358096324,
+            "max": 2654.089976900274
+          },
+          {
+            "prompt_tokens": 2800,
+            "prefill_tok_s_mediana": 3050.1638619923383,
+            "min": 3048.2231614888856,
+            "max": 3060.322385184347
+          }
+        ],
+        "nemotron-3-nano:30b": [
+          {
+            "prompt_tokens": 170,
+            "prefill_tok_s_mediana": 1513.6383489713692,
+            "min": 1511.1253627023095,
+            "max": 1522.2182573908642
+          },
+          {
+            "prompt_tokens": 615,
+            "prefill_tok_s_mediana": 2204.7760187939266,
+            "min": 2199.0712469715318,
+            "max": 2218.477400305792
+          },
+          {
+            "prompt_tokens": 2390,
+            "prefill_tok_s_mediana": 3007.234752520811,
+            "min": 3001.6772518449616,
+            "max": 3012.5190687730296
+          }
+        ]
+      }
+    },
+    "F03_ollama_tpot": {
+      "titulo": "Ollama: TPOT vs prompt",
+      "fuente": [
+        "ollama/resultados/*/datos.json"
+      ],
+      "nota": "Mediana de 5 solicitudes, 128 tokens de salida; banda = mínimo–máximo. Valor reportado por Ollama (eval_duration).",
+      "datos": {
+        "qwen3-coder:30b": [
+          {
+            "prompt_tokens": 195,
+            "tpot_ms_mediana": 8.5097314765625,
+            "min": 8.418988906249998,
+            "max": 8.5901810234375,
+            "decode_tok_s_mediana": 117.51252113585483
+          },
+          {
+            "prompt_tokens": 717,
+            "tpot_ms_mediana": 8.6877297890625,
+            "min": 8.6540431875,
+            "max": 8.768727531249999,
+            "decode_tok_s_mediana": 115.10486908317057
+          },
+          {
+            "prompt_tokens": 2800,
+            "tpot_ms_mediana": 9.1161198359375,
+            "min": 9.0630569921875,
+            "max": 9.135543960937499,
+            "decode_tok_s_mediana": 109.69579360484133
+          }
+        ],
+        "nemotron-3-nano:30b": [
+          {
+            "prompt_tokens": 170,
+            "tpot_ms_mediana": 6.579977515625,
+            "min": 6.5400435,
+            "max": 6.638287945312499,
+            "decode_tok_s_mediana": 151.97620320515864
+          },
+          {
+            "prompt_tokens": 615,
+            "tpot_ms_mediana": 6.5176875703125,
+            "min": 6.4531476328125,
+            "max": 6.5866582265625,
+            "decode_tok_s_mediana": 153.42864922751332
+          },
+          {
+            "prompt_tokens": 2390,
+            "tpot_ms_mediana": 6.5737973828125,
+            "min": 6.5155277499999995,
+            "max": 6.5900919765625,
+            "decode_tok_s_mediana": 152.11907848187514
+          }
+        ]
+      }
+    },
+    "F04_ollama_carga_modelo": {
+      "titulo": "Ollama: tiempo de carga del modelo",
+      "fuente": [
+        "ollama/resultados/*/datos.json",
+        "RESUMEN_TESIS.md"
+      ],
+      "nota": "*11-nov: Ollama leyó memoria libre obsoleta y dejó 10 de 53 capas en CPU; la medición posterior no es válida.",
+      "datos": [
+        {
+          "corrida": "qwen3-coder:30b 11-nov (job 33107)",
+          "carga_s": 85.75864756852388,
+          "valida": true
+        },
+        {
+          "corrida": "nemotron-3-nano:30b 11-nov (job 33107)",
+          "carga_s": 226.7873433828354,
+          "valida": false
+        },
+        {
+          "corrida": "nemotron-3-nano:30b 16-nov (job 36268)",
+          "carga_s": 181.8877638578415,
+          "valida": true
+        }
+      ]
+    },
+    "F05_ollama_dispersion_ttft": {
+      "titulo": "Ollama: TTFT y prefill por solicitud",
+      "fuente": [
+        "ollama/resultados/*/datos.json"
+      ],
+      "nota": "El prefill del servidor es casi constante; la dispersión del TTFT procede de load_duration (causa sin diagnosticar).",
+      "datos": {
+        "qwen3-coder:30b": [
+          {
+            "prompt_tokens": 195,
+            "ttft_ms": [
+              1378.9316192269325,
+              2208.7725773453712,
+              1757.9784989356995,
+              1908.6023196578026,
+              1690.7580196857452
+            ],
+            "prefill_ms": [
+              119.19163300000001,
+              100.132205,
+              100.310945,
+              99.43967099999999,
+              99.96208299999999
+            ]
+          },
+          {
+            "prompt_tokens": 717,
+            "ttft_ms": [
+              1336.0946327447891,
+              1227.3724600672722,
+              2095.755748450756,
+              1607.9591438174248,
+              1723.7984910607338
+            ],
+            "prefill_ms": [
+              270.149093,
+              270.628013,
+              270.293387,
+              270.17515199999997,
+              269.813676
+            ]
+          },
+          {
+            "prompt_tokens": 2800,
+            "ttft_ms": [
+              2472.8918969631195,
+              2479.7165542840958,
+              2824.043847620487,
+              3325.4042640328407,
+              3257.5250640511513
+            ],
+            "prefill_ms": [
+              914.609524,
+              918.567917,
+              918.445255,
+              917.977787,
+              917.983468
+            ]
+          }
+        ],
+        "nemotron-3-nano:30b": [
+          {
+            "prompt_tokens": 170,
+            "ttft_ms": [
+              983.1299334764481,
+              868.9303919672966,
+              920.7035228610039,
+              1301.3327941298485,
+              1681.4525946974754
+            ],
+            "prefill_ms": [
+              112.361559,
+              112.31216500000001,
+              112.49893900000001,
+              111.679123,
+              111.783862
+            ]
+          },
+          {
+            "prompt_tokens": 615,
+            "ttft_ms": [
+              1609.6314787864685,
+              1501.4962404966354,
+              1599.1002768278122,
+              1507.5965151190758,
+              1656.1972945928574
+            ],
+            "prefill_ms": [
+              277.21715800000004,
+              277.990477,
+              279.20878,
+              279.470396,
+              278.93989899999997
+            ]
+          },
+          {
+            "prompt_tokens": 2390,
+            "ttft_ms": [
+              2426.3093918561935,
+              2866.8194711208344,
+              3003.7310644984245,
+              2175.306089222431,
+              2554.106503725052
+            ],
+            "prefill_ms": [
+              794.113371,
+              796.2215120000001,
+              793.3559740000001,
+              794.7500600000001,
+              794.9575629999999
+            ]
+          }
+        ]
+      }
+    },
+    "F06_vllm_piloto_mig_metricas": {
+      "titulo": "vLLM piloto MIG: TTFT, TPOT y throughput",
+      "fuente": [
+        "resultados/piloto-mig-0.6b-20261027-155013/serve_*.json"
+      ],
+      "nota": "8 solicitudes por punto, 128 tokens de salida, ignore_eos. Barra = p50; bigote hasta p99.",
+      "datos": [
+        {
+          "entrada": 128,
+          "salida": 128,
+          "concurrencia": 1,
+          "solicitudes": 8,
+          "ttft_p50_ms": 18.945219926536083,
+          "ttft_p99_ms": 20.164912566542625,
+          "tpot_p50_ms": 8.344714911141264,
+          "tpot_p99_ms": 8.34707604706522,
+          "itl_p99_ms": 10.988719854503874,
+          "salida_tok_s": 118.54734546968034,
+          "total_tok_s": 237.09469093936067
+        },
+        {
+          "entrada": 128,
+          "salida": 128,
+          "concurrencia": 4,
+          "solicitudes": 8,
+          "ttft_p50_ms": 51.292370073497295,
+          "ttft_p99_ms": 54.66965204104781,
+          "tpot_p50_ms": 9.651850974993913,
+          "tpot_p99_ms": 9.800914018231584,
+          "itl_p99_ms": 11.145419720560312,
+          "salida_tok_s": 400.5016483712224,
+          "total_tok_s": 801.0032967424448
+        },
+        {
+          "entrada": 1024,
+          "salida": 128,
+          "concurrencia": 1,
+          "solicitudes": 8,
+          "ttft_p50_ms": 57.576436549425125,
+          "ttft_p99_ms": 57.84467229619622,
+          "tpot_p50_ms": 8.90866373702297,
+          "tpot_p99_ms": 8.915859918572067,
+          "itl_p99_ms": 10.290276352316146,
+          "salida_tok_s": 107.58153528223518,
+          "total_tok_s": 968.2338175401167
+        },
+        {
+          "entrada": 1024,
+          "salida": 128,
+          "concurrencia": 4,
+          "solicitudes": 8,
+          "ttft_p50_ms": 183.87246318161488,
+          "ttft_p99_ms": 221.37913482263684,
+          "tpot_p50_ms": 12.420790335970132,
+          "tpot_p99_ms": 13.303577720414935,
+          "itl_p99_ms": 14.85467636957766,
+          "salida_tok_s": 288.8671058037432,
+          "total_tok_s": 2599.8039522336885
+        }
+      ]
+    },
+    "F07_vllm_piloto_itl": {
+      "titulo": "vLLM piloto MIG: distribución ITL",
+      "fuente": [
+        "resultados/piloto-mig-0.6b-20261027-155013/serve_*.json"
+      ],
+      "nota": "Qwen3-0.6B, MIG 1g.5gb. Caja = p25–p75, línea = mediana, bigotes = p1–p99, puntos = fuera de ese rango. Eje recortado a 20 ms.",
+      "datos": [
+        {
+          "entrada": 128,
+          "concurrencia": 1,
+          "n_itl": 1016,
+          "p50_ms": 8.338766172528267,
+          "p1_ms": 5.817631371319294,
+          "p99_ms": 11.042263619601727,
+          "max_ms": 15.208296477794647
+        },
+        {
+          "entrada": 128,
+          "concurrencia": 4,
+          "n_itl": 1016,
+          "p50_ms": 9.644354693591595,
+          "p1_ms": 7.7421159110963345,
+          "p99_ms": 12.007992919534445,
+          "max_ms": 31.35257586836815
+        },
+        {
+          "entrada": 1024,
+          "concurrencia": 1,
+          "n_itl": 1016,
+          "p50_ms": 8.91454704105854,
+          "p1_ms": 7.134882640093565,
+          "p99_ms": 10.36536905914545,
+          "max_ms": 14.592420309782028
+        },
+        {
+          "entrada": 1024,
+          "concurrencia": 4,
+          "n_itl": 1016,
+          "p50_ms": 12.230020947754383,
+          "p1_ms": 10.05839029327035,
+          "p99_ms": 14.972580578178167,
+          "max_ms": 100.40760599076748
+        }
+      ]
+    },
+    "F08_vllm_8b_offline": {
+      "titulo": "vLLM bench latency Qwen3-8B",
+      "fuente": [
+        "resultados/30732/lat_*.json"
+      ],
+      "nota": "vllm bench latency, lote 1, 10 iteraciones (p50). Decode derivado = (lat. out=129 − lat. out=1)/128. El barrido acabó en TIMEOUT (5 h).",
+      "datos": {
+        "prefill_in128_ms_p50": 17.06996187567711,
+        "prefill_in512_ms_p50": 37.19383850693703,
+        "lat_in128_out129_ms_p50": 1695.1972544193268,
+        "tpot_in128_ms_derivado": 13.110369472997263,
+        "iteraciones": 10
+      }
+    },
+    "F09_vllm_arranques_cronologia": {
+      "titulo": "Cronología de los arranques de vllm serve",
+      "fuente": [
+        "tesis-8b-31157.out, tesis/resultados/31157/serve.log",
+        "tesis-14b-31593.out, tesis/resultados/31593/serve.log",
+        "docs/linea-base-home-20261102/{ensayo.out,serve.log}",
+        "docs/arranque-14b-20261119/{arranque.out,serve.log,gpu_monitor.csv}"
+      ],
+      "nota": "Hitos tomados de serve.log. Pesos (y el venv) leídos desde /home por NFS en los cuatro casos.",
+      "datos": [
+        {
+          "id": "31157",
+          "desenlace": "serve.log vacío; el script lo detuvo a los 45 min",
+          "fuente": "tesis-8b-31157.out, tesis/resultados/31157/serve.log",
+          "min_desde_t0": {
+            "sin_hitos": [
+              0.0,
+              45.1
+            ]
+          },
+          "fin_min": 45.1
+        },
+        {
+          "id": "31593",
+          "desenlace": "pesos cargados; el script lo detuvo a los 45 min",
+          "fuente": "tesis-14b-31593.out, tesis/resultados/31593/serve.log",
+          "min_desde_t0": {
+            "t0->banner": [
+              0.0,
+              12.92
+            ],
+            "banner->engine": [
+              12.92,
+              32.67
+            ],
+            "engine->carga_ini": [
+              32.67,
+              36.37
+            ],
+            "carga_ini->carga_fin": [
+              36.37,
+              39.52
+            ],
+            "carga_fin->fin": [
+              39.52,
+              45.13
+            ]
+          },
+          "fin_min": 45.13333333333333
+        },
+        {
+          "id": "base-0211",
+          "desenlace": "TimeoutError de vLLM (VLLM_ENGINE_READY_TIMEOUT_S = 600 s)",
+          "fuente": "docs/linea-base-home-20261102/{ensayo.out,serve.log}",
+          "min_desde_t0": {
+            "t0->banner": [
+              0.0,
+              19.48
+            ],
+            "banner->engine": [
+              19.48,
+              45.92
+            ],
+            "engine->carga_ini": [
+              45.92,
+              50.42
+            ],
+            "carga_ini->carga_fin": [
+              50.42,
+              55.18
+            ],
+            "carga_fin->fin": [
+              55.18,
+              59.52
+            ]
+          },
+          "fin_min": 59.516666666666666,
+          "nota": "carga_ini derivado: 10:04:02 − 285,9 s ('Model loading took')"
+        },
+        {
+          "id": "37415",
+          "desenlace": "el registro termina a los 32 min sin EngineCore (desenlace no registrado)",
+          "fuente": "docs/arranque-14b-20261119/{arranque.out,serve.log,gpu_monitor.csv}",
+          "min_desde_t0": {
+            "t0->banner": [
+              0.0,
+              25.8
+            ],
+            "sin_hitos": [
+              25.8,
+              32.18
+            ]
+          },
+          "fin_min": 32.18333333333333
+        }
+      ]
+    },
+    "F10_vllm_arranques_memoria_gpu": {
+      "titulo": "Memoria GPU durante el arranque de vllm serve",
+      "fuente": [
+        "tesis/resultados/31157/gpu_monitor.csv",
+        "tesis/resultados/31593/gpu_monitor.csv",
+        "docs/arranque-14b-20261119/gpu_monitor.csv"
+      ],
+      "nota": "nvidia-smi cada 1 s (31157, 31593) o 5 s (37415). Solo en 31593 llegaron pesos a la GPU (minuto ~37).",
+      "datos": {
+        "Qwen3-8B · 27-oct (31157)": {
+          "muestras": 2670,
+          "max_gib": 0.0,
+          "min_hasta_memoria_>0": null,
+          "duracion_min": 45.10443333333333
+        },
+        "Qwen3-14B · 29-oct (31593)": {
+          "muestras": 2706,
+          "max_gib": 28.0849609375,
+          "min_hasta_memoria_>0": 35.76326666666667,
+          "duracion_min": 45.13985
+        },
+        "Qwen3-14B · 19-nov (37415)": {
+          "muestras": 387,
+          "max_gib": 0.0,
+          "min_hasta_memoria_>0": null,
+          "duracion_min": 32.199283333333334
+        }
+      }
+    },
+    "F11_vllm_8b_barrido_gpu": {
+      "titulo": "GPU durante bench_pd.sh (30732)",
+      "fuente": [
+        "resultados/30732/gpu_monitor.csv"
+      ],
+      "nota": "nvidia-smi cada 2 s. Cada fase de vllm bench latency recarga el modelo; la fase in=128 duró ~2,5 h (causa sin diagnosticar).",
+      "datos": {
+        "muestras": 8607,
+        "horas": 4.8090536111111115,
+        "mem_max_gib": 35.9365234375,
+        "fraccion_muestras_util>0": 0.011037527593818985,
+        "hitos": [
+          [
+            "smoke.py",
+            "2026-10-24 11:17:38"
+          ],
+          [
+            "in=128",
+            "2026-10-24 11:48:32"
+          ],
+          [
+            "in=512",
+            "2026-10-24 14:17:57"
+          ]
+        ]
+      }
+    },
+    "F12_preparacion_entorno_nfs": {
+      "titulo": "Tiempos de preparación del entorno",
+      "fuente": [
+        "tesis-14b-31593.out",
+        "tesis-8b-31157.out",
+        "logs/fase1_32710.log",
+        "logs/fase1_33107.log",
+        "RESUMEN_TESIS.md (1,2 GB de 12 GB a los 71 min)"
+      ],
+      "nota": "hf-cache de Qwen3-14B = 28 GB. Tiempos tomados de los logs de cada trabajo.",
+      "datos": [
+        {
+          "paso": "31593 · 29-oct entorno (venv en /home)",
+          "minutos": 2.533333333333333,
+          "completo": true,
+          "fuente": "tesis-14b-31593.out"
+        },
+        {
+          "paso": "31157 · 27-oct entorno (venv en /home)",
+          "minutos": 21.733333333333334,
+          "completo": true,
+          "fuente": "tesis-8b-31157.out"
+        },
+        {
+          "paso": "32710 · 8-nov copia hf-cache → /scratch",
+          "minutos": 7.65,
+          "completo": true,
+          "fuente": "logs/fase1_32710.log"
+        },
+        {
+          "paso": "33107 · 11-nov copia hf-cache → /scratch",
+          "minutos": 6.9,
+          "completo": true,
+          "fuente": "logs/fase1_33107.log"
+        },
+        {
+          "paso": "33107 · 11-nov copia venv (12 GB) → /scratch",
+          "minutos": 71,
+          "completo": false,
+          "fuente": "RESUMEN_TESIS.md (1,2 GB de 12 GB a los 71 min)"
+        }
+      ]
+    },
+    "F13_carga_nodo_loadavg": {
+      "titulo": "loadavg del nodo por prueba",
+      "fuente": [
+        "resultados/30732/entorno.txt",
+        "tesis/resultados/31157/entorno.txt",
+        "tesis/resultados/31593/entorno.txt",
+        "ollama/resultados/qwen3-coder_30b-20261111-170123/datos.json",
+        "ollama/resultados/nemotron-3-nano_30b-20261116-185849/datos.json",
+        "docs/arranque-14b-20261119/entorno.txt"
+      ],
+      "nota": "loadavg del nodo completo (compartido con otros usuarios), leído al comenzar cada trabajo.",
+      "datos": [
+        {
+          "job": "30732 24-oct",
+          "loadavg_1m": 37.2,
+          "resultado": "vLLM 8B offline TIMEOUT 5 h",
+          "fuente": "resultados/30732/entorno.txt"
+        },
+        {
+          "job": "31157 27-oct",
+          "loadavg_1m": 134.39,
+          "resultado": "vLLM 8B no arrancó",
+          "fuente": "tesis/resultados/31157/entorno.txt"
+        },
+        {
+          "job": "31593 29-oct",
+          "loadavg_1m": 147.24,
+          "resultado": "vLLM 14B no arrancó",
+          "fuente": "tesis/resultados/31593/entorno.txt"
+        },
+        {
+          "job": "33107 11-nov",
+          "loadavg_1m": 333.15,
+          "resultado": "Ollama qwen3-coder ✓",
+          "fuente": "ollama/resultados/qwen3-coder_30b-20261111-170123/datos.json"
+        },
+        {
+          "job": "36268 16-nov",
+          "loadavg_1m": 85.68,
+          "resultado": "Ollama nemotron ✓",
+          "fuente": "ollama/resultados/nemotron-3-nano_30b-20261116-185849/datos.json"
+        },
+        {
+          "job": "37415 19-nov",
+          "loadavg_1m": 177.18,
+          "resultado": "vLLM 14B sin desenlace",
+          "fuente": "docs/arranque-14b-20261119/entorno.txt"
+        }
+      ]
+    }
+  }
+}
