@@ -1,10 +1,87 @@
 \chapter{Conclusiones y Recomendaciones}
+\label{chap:conclusiones}
 
 \section{Conclusiones}
-\textit{[Redactar conclusiones basadas en los resultados obtenidos y en el cumplimiento de los objetivos planteados.]}
+\label{sec:cap4:conclusiones}
+
+Los objetivos del trabajo son los de la propuesta aprobada y se mantienen sin cambios (Sección~\ref{sec:cap1:objetivos}). Esta sección los contrasta con lo que efectivamente se obtuvo. La Tabla~\ref{tab:cap4:objetivos} resume el grado de cumplimiento de cada uno y los apartados siguientes lo justifican con los resultados del Capítulo~\ref{chap:implementacion}.
+
+\begin{table}[htbp]
+  \centering
+  \caption{Grado de cumplimiento de los objetivos específicos.}
+  \label{tab:cap4:objetivos}
+  \footnotesize
+  \begin{tabular}{|p{0.06\textwidth}|p{0.14\textwidth}|p{0.32\textwidth}|p{0.32\textwidth}|}
+    \hline
+    \textbf{Obj.} & \textbf{Grado} & \textbf{Obtenido} & \textbf{No obtenido y causa} \\
+    \hline
+    OE1 & Parcial & Entorno de vLLM 0.20.0 con versiones fijadas y parche de glibc; funciona con Qwen3-0.6B y Qwen3-8B sin servidor. Ollama 0.24.0 dentro del contenedor \texttt{jos\_env} & Ningún arranque de \texttt{vllm serve} con Qwen3-14B quedó listo: importación lenta desde el NFS, cuya causa no se diagnosticó \\
+    \hline
+    OE2 & Parcial & TTFT, prefill, TPOT y throughput de dos modelos de 30B con Ollama, a tres longitudes de prompt; piloto de vLLM a concurrencia 1 y 4; memoria y utilización de la GPU & Métricas de Qwen3-14B, comparación BF16 frente a AWQ INT4, energía, variación de la longitud de salida y concurrencias superiores a 4: dependían de un servidor de vLLM operativo \\
+    \hline
+    OE3 & Parcial & Asimetría entre prefill y decode medida y explicada con el modelo roofline; contraste cuantitativo del decode de Qwen3-8B con su techo & Contraste cuantitativo de Qwen3-14B y de los modelos de Ollama con los techos de la A100 \\
+    \hline
+    OE4 & No alcanzado & Scripts de ejecución, recolección y almacenamiento de resultados & Modelo predictivo y prototipo Qwen-A100 Profiler: no existe la matriz de mediciones de Qwen3-14B sobre la que ajustarlos \\
+    \hline
+  \end{tabular}
+  \elaboradopor{José Andrés Ureta Granda}
+  \fuente{Elaboración propia}
+\end{table}
+
+\subsection{OE1: entorno reproducible}
+
+El objetivo se cumplió de forma parcial. Se construyó y documentó un entorno con vLLM 0.20.0 y PyTorch 2.11, que exige un parche para ejecutarse sobre la glibc 2.31 de los nodos (Sección~\ref{sec:cap2:parche}), y con él vLLM funcionó con Qwen3-0.6B en una instancia MIG y con Qwen3-8B sin servidor. Para Ollama se fijó la versión 0.24.0, porque las versiones a partir de la 0.30 exigen un driver más reciente que el 535 del nodo, y la medición válida se ejecutó dentro del contenedor enroot \texttt{jos\_env}.
+
+El entorno no permitió servir Qwen3-14B. Se lanzaron cuatro arranques de \texttt{vllm serve}, uno con Qwen3-8B y tres con Qwen3-14B, y ninguno quedó listo (Sección~\ref{sec:cap3:viabilidad}). El tramo de importación desde \texttt{/home} creció de 12,9 a 19,5 y a 25,8~min entre el 29 de octubre y el 19 de noviembre, y la alternativa de copiar el entorno al disco local no se completó: del entorno virtual, de 12~GB, solo se habían copiado 1,2~GB a los 71~min. La conclusión es que, en este clúster, leer el entorno y los pesos desde el NFS hace inviable el arranque del servidor; la causa del empeoramiento entre intentos no se diagnosticó.
+
+\subsection{OE2: medición de las métricas}
+
+El objetivo se cumplió de forma parcial. Se midieron el TTFT, la duración y la velocidad del prefill, el TPOT y el throughput de decode de dos modelos de 30B parámetros con cuantización Q4\_K\_M, servidos con Ollama sobre la A100 completa, a tres longitudes de prompt, con 128 tokens de salida y una solicitud a la vez (Sección~\ref{sec:cap3:fases-a100}). Con vLLM se midieron el TTFT, el TPOT, la latencia entre tokens y el throughput de Qwen3-0.6B a concurrencias de 1 y 4, y el prefill de Qwen3-8B a 128 y 512 tokens (Sección~\ref{sec:cap3:vllm}). La memoria y la utilización de la GPU se registraron en todos los trabajos.
+
+No se dispone de métricas de inferencia de Qwen3-14B, de la comparación entre BF16 y AWQ INT4, de la energía por token, de la variación de la longitud de salida ni de concurrencias superiores a 4. Todas esas mediciones dependían de un servidor de vLLM operativo con Qwen3-14B, que no llegó a obtenerse.
+
+\subsection{OE3: análisis por fases}
+
+El objetivo se cumplió de forma parcial. El resultado principal del trabajo es la asimetría entre las dos fases frente a la longitud del prompt. En \texttt{nemotron-3-\allowbreak nano:\allowbreak 30b}, el TPOT varió solo un 0,95~\% entre 170 y 2390 tokens de prompt, mientras la velocidad de prefill se multiplicó por 1,99. En \texttt{qwen3-\allowbreak coder:\allowbreak 30b}, el TPOT aumentó un 7,1~\% entre 195 y 2800 tokens y el prefill un 56,6~\%. El comportamiento concuerda con el modelo roofline: el decode con una solicitud queda limitado por la lectura de los pesos desde la memoria, de modo que apenas depende del contexto, y el prefill reutiliza cada lectura de los pesos para todos los tokens del prompt, de modo que gana velocidad cuando el prompt crece (Sección~\ref{sec:cap3:asimetria}).
+
+El contraste cuantitativo con los techos de la A100 solo pudo hacerse para el decode de Qwen3-8B. Su TPOT derivado, de 13,11~ms, equivale a 76,3~tokens/s, el 80~\% del techo de 95~tokens/s que fija la Ecuación~\ref{eq:cap2:techo-decode} para ese modelo en BF16. Ese porcentaje es coherente con un decode limitado por el ancho de banda de memoria. No se contrastaron con los techos las mediciones de Ollama, porque los techos de la Sección~\ref{sec:cap2:techos} se calcularon para pesos en BF16 de Qwen3-14B y Qwen3-8B, y los modelos medidos con Ollama son otros y están cuantizados en Q4\_K\_M. Tampoco se dispone del contraste para Qwen3-14B, por la causa expuesta en OE1.
+
+El análisis produjo, además, un hallazgo metodológico. En Ollama, el TTFT medido en el cliente incluye un \texttt{load\_duration} variable que aparece en cada solicitud aunque el modelo ya esté cargado; en \texttt{qwen3-\allowbreak coder:\allowbreak 30b} con 195 tokens, ese término supone el 94,2~\% del TTFT (Sección~\ref{sec:cap3:load-duration}). El fenómeno se repitió en los dos modelos, con cargas del nodo de 85,7 y 333,2. Su causa no se diagnosticó, pero su consecuencia sí es firme: en Ollama, el prefill debe tomarse del valor que reporta el servidor y no del TTFT del cliente.
+
+\subsection{OE4: modelo predictivo}
+
+El objetivo no se alcanzó. El modelo predictivo del TTFT y del TPOT y el prototipo Qwen-A100 Profiler que lo integra requerían la matriz de mediciones de Qwen3-14B sobre los niveles de longitud de entrada, longitud de salida, concurrencia y cuantización, y esa matriz no existe. Con seis puntos de Ollama, de dos modelos ajenos al alcance y con un solo nivel de salida y de concurrencia, no es posible ajustar ni validar el modelo con la meta de error que fija la ficha. Sí quedaron construidos los componentes de ejecución, recolección y almacenamiento de resultados: el cliente \texttt{tfgbench}, el cliente de medición de Ollama y el generador de figuras a partir de los datos registrados.
+
+\subsection{El papel de Qwen3-8B}
+
+La propuesta incluía Qwen3-8B como modelo piloto, y así se empleó al comienzo del trabajo. El 24 de octubre (trabajo 30732) se midió sin servidor, con \texttt{vllm bench latency}, y el barrido terminó por límite de tiempo a las 5~h con solo algunos de sus puntos. El 27 de octubre (trabajo 31157) se lanzó su campaña con servidor, pero \texttt{vllm serve} no escribió nada en su registro en 45~min. El 29 de octubre, por indicación del tutor, el trabajo pasó a Qwen3-14B como modelo principal (Sección~\ref{sec:cap2:metodologia}), y a partir de esa fecha no se volvió a medir Qwen3-8B. Sus resultados se conservan porque son los únicos de vLLM en la A100 completa y porque permiten el contraste con el techo de decode descrito en OE3.
+
+\subsection{Conclusión general}
+
+El objetivo general no se alcanzó para la combinación prevista de Qwen3-14B, vLLM y la A100: no se obtuvieron métricas de esa combinación, ni el efecto de la cuantización ni el de la energía. El trabajo aporta, en cambio, cuatro resultados verificables. El primero es la caracterización de la asimetría entre prefill y decode en dos modelos de 30B sobre la A100 completa. El segundo es la evidencia de que, en este clúster, el arranque de vLLM desde el NFS no queda listo en el tiempo de una reserva. El tercero es la constatación de que el TTFT del cliente en Ollama no mide el prefill. El cuarto es un instrumento de medición validado con vLLM y un protocolo de validez, el de comprobar que el modelo quede íntegramente en la GPU, que permitió descartar una medición defectuosa. Estos resultados valen para los modelos, el motor y el hardware con que se obtuvieron y no se extienden a Qwen3-14B.
 
 \section{Recomendaciones}
-\textit{[Proponer mejoras, optimizaciones o ampliaciones del proyecto, fundamentadas en el análisis realizado.]}
+\label{sec:cap4:recomendaciones}
+
+\begin{itemize}
+  \item \textbf{Comprobar la carga del modelo antes de medir.} En Ollama, verificar en el registro del servidor que todas las capas quedaron en la GPU y reiniciar el servidor entre dos modelos, porque con un dato de memoria libre desactualizado reparte el modelo entre la GPU y la CPU.
+  \item \textbf{Tomar el prefill del servidor.} En Ollama, emplear \texttt{prompt\_\allowbreak eval\_\allowbreak duration} para caracterizar el prefill, y no el TTFT del cliente, porque este incluye el \texttt{load\_duration}.
+  \item \textbf{Expresar la longitud del prompt en tokens.} Al comparar modelos con tokenizadores distintos, usar el número de tokens que cuenta el servidor y no el de palabras.
+  \item \textbf{Registrar siempre el contexto del nodo.} Guardar al inicio de cada trabajo la carga del nodo, el nodo, el driver y el entorno de ejecución, y mantener activo el monitor de la GPU; el arranque del 2 de noviembre carece de carga registrada y de monitor, y la medición de \texttt{qwen3-\allowbreak coder:\allowbreak 30b} no anota su entorno.
+  \item \textbf{No servir vLLM desde el NFS.} Disponer el entorno y los pesos en el disco local del nodo antes del arranque y, dado que la copia del entorno virtual archivo a archivo no se completó, empaquetarlo en un único archivo, por ejemplo una imagen de contenedor, para que su copia no dependa del número de archivos.
+  \item \textbf{Acordar con la administración del clúster las condiciones de medición.} Solicitar ventanas con baja carga o reservas de nodo completo para las campañas, ya que la carga del nodo osciló entre 37,2 y 333,2 al inicio de las pruebas.
+\end{itemize}
 
 \section{Trabajos Futuros}
-\textit{[Plantear líneas de desarrollo o investigación que puedan derivarse del proyecto implementado.]}
+\label{sec:cap4:futuros}
+
+Se proponen las siguientes líneas de continuación:
+
+\begin{itemize}
+  \item Completar la campaña prevista con Qwen3-14B y vLLM desde el disco local del nodo, con los experimentos E1 y E2 del Capítulo~\ref{chap:metodologia}.
+  \item Comparar las representaciones BF16 y AWQ INT4 y estimar la energía por token con la telemetría de la GPU, según las Ecuaciones~\ref{eq:cap2:energia} y~\ref{eq:cap2:etoken}.
+  \item Ajustar y validar el modelo predictivo del TTFT y del TPOT sobre esa campaña e integrarlo en el prototipo Qwen-A100 Profiler.
+  \item Diagnosticar el origen del \texttt{load\_duration} por solicitud en Ollama.
+  \item Repetir la medición de \texttt{qwen3-\allowbreak coder:\allowbreak 30b} en las mismas condiciones que \texttt{nemotron-3-\allowbreak nano:\allowbreak 30b}, para que la comparación entre ambos modelos no dependa del entorno ni de la carga del nodo.
+  \item Extender el estudio a la ejecución en varias GPU y a la desagregación de prefill y decode~\cite{zhong2024distserve,patel2024splitwise}.
+\end{itemize}
