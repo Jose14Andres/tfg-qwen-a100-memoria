@@ -2,9 +2,29 @@
 \chapter*{GLOSARIO}
 \addcontentsline{toc}{chapter}{GLOSARIO}
 
-\noindent\textit{[Defina los términos técnicos relevantes utilizados en el documento.]}
-
 \begin{description}
-  \item[Término o sigla 1] \textit{[Definición técnica breve y clara.]}
-  \item[Término o sigla 2] \textit{[Definición técnica breve y clara.]}
+  \item[A100] GPU de NVIDIA de arquitectura Ampere empleada en el trabajo, en su versión SXM4 con 40~GB de memoria HBM2.
+  \item[AWQ] Activation-aware Weight Quantization; método de cuantización de solo pesos a baja precisión, como INT4, que protege los pesos más relevantes según la magnitud de las activaciones.
+  \item[BF16] Formato de coma flotante de 16 bits con el mismo rango de exponente que FP32; representación numérica de referencia de los pesos en este trabajo.
+  \item[Decode] Fase de la inferencia en la que el modelo genera la respuesta un token por paso, a partir del KV cache.
+  \item[enroot] Herramienta que ejecuta contenedores sin privilegios de administrador en entornos HPC; en este trabajo se usó con el contenedor \texttt{jos\_env}.
+  \item[GGUF] Formato de archivo de modelos cuantizados empleado por Ollama.
+  \item[GQA] Grouped-Query Attention; variante de la atención en la que grupos de cabezas de consulta comparten un mismo par de cabezas de clave y valor.
+  \item[ITL] Inter-Token Latency; tiempo entre dos tokens de salida consecutivos de una misma solicitud.
+  \item[KV cache] Estructura en memoria de la GPU que conserva las claves y los valores de los tokens ya procesados para no recalcularlos en cada paso de decode.
+  \item[\texttt{load\_duration}] Campo de la respuesta de Ollama que informa del tiempo dedicado a cargar el modelo para atender la solicitud.
+  \item[\textit{loadavg}] Carga media del sistema operativo: número medio de procesos en ejecución o en espera durante el último minuto.
+  \item[MBU] Model Bandwidth Utilization; fracción del ancho de banda de memoria de la GPU que aprovecha el modelo.
+  \item[MFU] Model FLOPs Utilization; fracción del rendimiento máximo de cómputo de la GPU que aprovecha el modelo.
+  \item[MIG] Multi-Instance GPU; partición de una A100 en instancias aisladas con memoria y cómputo propios.
+  \item[NFS] Network File System; sistema de archivos compartido por red en el que residen los directorios \texttt{/home} del clúster.
+  \item[Ollama] Servidor de inferencia de modelos cuantizados en formato GGUF.
+  \item[Prefill] Fase de la inferencia en la que el modelo procesa en paralelo todos los tokens del prompt y crea el KV cache.
+  \item[Q4\_K\_M] Esquema de cuantización de pesos de aproximadamente 4 bits del formato GGUF.
+  \item[Roofline] Modelo que acota el rendimiento de un cálculo por el menor de dos límites: el cómputo máximo del procesador y el producto de su intensidad aritmética por el ancho de banda de memoria.
+  \item[Slurm] Planificador de trabajos del clúster HPC.
+  \item[Throughput] Número de tokens generados o procesados por unidad de tiempo.
+  \item[TPOT] Time Per Output Token; tiempo medio por token de salida, asociado a la fase decode.
+  \item[TTFT] Time To First Token; tiempo desde el envío de la solicitud hasta la recepción del primer token, asociado a la fase prefill.
+  \item[vLLM] Motor de inferencia de código abierto que gestiona el KV cache mediante PagedAttention.
 \end{description}

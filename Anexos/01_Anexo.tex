@@ -1,15 +1,31 @@
-\Anexo{Título del Anexo A}
+\Anexo{Repositorio y datos experimentales}
 
-\textit{[Incluya una descripción breve del contenido del anexo. Ejemplo: documentación técnica, diagramas, configuraciones, evidencias o instrumentos aplicados.]}
+El código, los datos y la memoria del trabajo están versionados en el repositorio \url{https://github.com/Jose14Andres/tfg-qwen-a100-memoria}. La Tabla~\ref{tab:anexoA:contenido} indica dónde se encuentra cada elemento que sustenta los resultados del Capítulo~\ref{chap:implementacion}.
 
-\begin{itemize}
-  \item \textit{[Documentación técnica.]}
-  \item \textit{[Manuales de usuario y administración.]}
-  \item \textit{[Evidencias de pruebas.]}
-  \item \textit{[Autorizaciones y validaciones de la entidad receptora.]}
-  \item \textit{[Repositorio de versionamiento (enlace).]}
-  \item \textit{[Formatos de entrevistas y encuestas aplicadas.]}
-\end{itemize}
+\begin{table}[htbp]
+  \centering
+  \caption{Contenido del repositorio que sustenta los resultados.}
+  \label{tab:anexoA:contenido}
+  \footnotesize
+  \begin{tabular}{|p{0.38\textwidth}|p{0.52\textwidth}|}
+    \hline
+    \textbf{Ruta} & \textbf{Contenido} \\
+    \hline
+    \texttt{experimentos/\allowbreak RESUMEN\_TESIS.md} & Cronología de las pruebas, método de medición y observaciones medidas \\
+    \hline
+    \texttt{experimentos/\allowbreak datos\_graficas.json} & Cada valor representado en las Figuras del Capítulo~\ref{chap:implementacion}, con el archivo del que procede; los valores derivados están marcados \\
+    \hline
+    \texttt{experimentos/\allowbreak generar\_graficas.py} & Script que genera las figuras a partir de los resultados registrados, sin modificarlos \\
+    \hline
+    \texttt{experimentos/figuras/} & Figuras en PDF y en PNG a 300~ppp \\
+    \hline
+    \texttt{experimentos/\allowbreak src/tfgbench/} & Cliente de medición en streaming empleado en el piloto de vLLM \\
+    \hline
+    \texttt{Pruebas\_Jose\_Ureta\_Tesis/} & Resultados y registros de los trabajos de Slurm \\
+    \hline
+  \end{tabular}
+  \elaboradopor{José Andrés Ureta Granda}
+  \fuente{Elaboración propia}
+\end{table}
 
-% \Anexo{Título del Anexo B}
-% Contenido...
+Para regenerar las figuras basta con ejecutar el script \texttt{generar\_graficas.py} en un entorno de Python que disponga de la biblioteca matplotlib, como describe \texttt{experimentos/LEEME.md}.
